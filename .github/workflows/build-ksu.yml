@@ -51,6 +51,8 @@ jobs:
           git clone --depth=1 -b "$KSU_BRANCH" https://github.com/KernelSU-Next/KernelSU-Next.git ksu
           # Fix Linux 5.4 undefined preempt_enable_no_resched_notrace across all files
           grep -rl "preempt_enable_no_resched_notrace" ksu/kernel/ | xargs sed -i 's/preempt_enable_no_resched_notrace/preempt_enable_notrace/g'
+          # Disable path_umount injection so it uses standard ksys_umount
+          sed -i 's/KSU_HAS_PATH_UMOUNT/KSU_DISABLE_PATH_UMOUNT/g' ksu/kernel/Kbuild ksu/kernel/feature/kernel_umount.c
 
       - name: Configure kernel tree matching device
         run: |
@@ -91,7 +93,7 @@ jobs:
           set -o pipefail
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
-            CONFIG_KSU=m CONFIG_KSU_KPROBES_HOOK=y \
+            CONFIG_KSU=m CONFIG_KSU_KPROBES_HOOK=y KBUILD_MODPOST_WARN=1 \
             M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc) 2>&1 | tee /tmp/build.log
 
       - name: Inspect and strip module
@@ -99,7 +101,9 @@ jobs:
           KO_PATH=$(find "$GITHUB_WORKSPACE/ksu" "$GITHUB_WORKSPACE/kernel_tree" -name "kernelsu.ko" -print -quit)
           echo "[+] Located module: $KO_PATH"
           if [ -n "$KO_PATH" ] && [ -f "$KO_PATH" ]; then
-            echo "[+] Build succeeded! Inspecting kernelsu.ko:"
+            echo "[+] Resolving unexported symbols using live device kallsyms..."
+            python3 scripts/resolve_symbols.py "$KO_PATH" kallsyms.gz
+            echo "[+] Stripping debug symbols..."
             llvm-strip --strip-debug "$KO_PATH"
             strings "$KO_PATH" | grep -E "vermagic=" || true
             mkdir -p out
