@@ -41,12 +41,6 @@ def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers"):
                 if name not in kallsyms:
                     kallsyms[name] = addr
 
-    # Specific architecture aliases
-    if "_find_next_bit" not in kallsyms and "find_next_bit" in kallsyms:
-        kallsyms["_find_next_bit"] = kallsyms["find_next_bit"]
-    if "path_umount" not in kallsyms and "ksys_umount" in kallsyms:
-        kallsyms["path_umount"] = kallsyms["ksys_umount"]
-
     with open(ko_path, "rb") as f:
         data = bytearray(f.read())
 

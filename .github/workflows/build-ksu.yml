@@ -52,16 +52,52 @@ jobs:
           # Fix Linux 5.4 undefined preempt_enable_no_resched_notrace across all files
           grep -rl "preempt_enable_no_resched_notrace" ksu/kernel/ | xargs sed -i 's/preempt_enable_no_resched_notrace/preempt_enable_notrace/g'
           # Disable path_umount injection so it uses standard ksys_umount
-          sed -i 's/KSU_HAS_PATH_UMOUNT/KSU_DISABLE_PATH_UMOUNT/g' ksu/kernel/Kbuild ksu/kernel/feature/kernel_umount.c
+          sed -i 's/KSU_HAS_PATH_UMOUNT/KSU_DISABLE_PATH_UMOUNT/g' ksu/kernel/Kbuild
+          sed -i 's/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)/#if 0 \&\& LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)/g' ksu/kernel/feature/kernel_umount.c
           # Prevent forcing SELinux enforcing mode on permissive OEM systems (avoids userland reboot)
           sed -i 's/setenforce(true);/\/* setenforce(true); *\//g' ksu/kernel/core/init.c
           # Prevent kobject_del on THIS_MODULE to preserve sysfs stability
           sed -i 's/kobject_del(&THIS_MODULE->mkobj.kobj);/\/* kobject_del(&THIS_MODULE->mkobj.kobj); *\//g' ksu/kernel/core/init.c
           # Disable ksu_setup_stack_chk_guard (stock kernel exports and protects __stack_chk_guard in read-only memory)
           sed -i 's/#if defined(CONFIG_STACKPROTECTOR) &&/#if 0 \&\& defined(CONFIG_STACKPROTECTOR) \&\&/g' ksu/kernel/core/init.c
-          # Force large memory model for all objects to prevent ARM64 ADRP relocation overflow (>2GB)
-          echo "ccflags-y += -fno-pic -mcmodel=large" >> ksu/kernel/Kbuild
-          echo "subdir-ccflags-y += -fno-pic -mcmodel=large" >> ksu/kernel/Kbuild
+          # Provide internal _find_next_bit implementation to eliminate CFI type signature mismatch
+          cat << 'EOF' >> ksu/kernel/compat/kernel_compat.c
+#ifndef BITMAP_FIRST_WORD_MASK
+#define BITMAP_FIRST_WORD_MASK(start) (~0UL << ((start) & (BITS_PER_LONG - 1)))
+#endif
+unsigned long _find_next_bit(const unsigned long *addr1,
+		const unsigned long *addr2, unsigned long nbits,
+		unsigned long start, unsigned long invert, unsigned long le)
+{
+	unsigned long tmp, mask;
+	if (start >= nbits)
+		return nbits;
+	tmp = addr1[start / BITS_PER_LONG];
+	if (addr2)
+		tmp &= addr2[start / BITS_PER_LONG];
+	tmp ^= invert;
+	mask = BITMAP_FIRST_WORD_MASK(start);
+	if (le)
+		mask = swab(mask);
+	tmp &= mask;
+	start = round_down(start, BITS_PER_LONG);
+	while (!tmp) {
+		start += BITS_PER_LONG;
+		if (start >= nbits)
+			return nbits;
+		tmp = addr1[start / BITS_PER_LONG];
+		if (addr2)
+			tmp &= addr2[start / BITS_PER_LONG];
+		tmp ^= invert;
+	}
+	if (le)
+		tmp = swab(tmp);
+	return min(start + __ffs(tmp), nbits);
+}
+EOF
+          # Force large memory model and recover from CFI checks to prevent traps
+          echo "ccflags-y += -fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi" >> ksu/kernel/Kbuild
+          echo "subdir-ccflags-y += -fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi" >> ksu/kernel/Kbuild
 
       - name: Configure kernel tree matching device
         run: |
@@ -104,7 +140,7 @@ jobs:
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
             CONFIG_KSU=m CONFIG_KSU_KPROBES_HOOK=y CONFIG_KSU_DEBUG=y KBUILD_MODPOST_WARN=1 \
-            KCFLAGS="-fno-pic -mcmodel=large" \
+            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi" \
             M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc) 2>&1 | tee /tmp/build.log
 
       - name: Inspect and strip module

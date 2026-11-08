@@ -16,7 +16,7 @@ with open(log_path, 'a', encoding='utf-8', buffering=1) as log_file:
             time.sleep(1)
             continue
         
-        cmd = 'adb shell "/data/local/tmp/su -c \'dmesg -w\' 2>/dev/null || dmesg -w"'
+        cmd = 'adb shell "/data/local/tmp/su -c \'dmesg -w\' 2>/dev/null"'
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, shell=True)
         try:
             for line in proc.stdout:
@@ -24,4 +24,4 @@ with open(log_path, 'a', encoding='utf-8', buffering=1) as log_file:
                 log_file.flush()
         except Exception:
             pass
-        time.sleep(1)
+        time.sleep(2)
