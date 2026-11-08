@@ -76,7 +76,7 @@ class MainActivity : AppCompatActivity() {
                 rootButton.text = "Grant Shizuku permission"
             }
             ShizukuRunner.State.NOT_RUNNING -> {
-                status.text = "Shizuku is not running.\nStart it once via adb:\n  adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh"
+                status.text = "Shizuku is not running.\nStart Shizuku on device via Wireless Debugging, or via adb:\n  adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh"
                 rootButton.isEnabled = false
                 rootButton.text = "One-click root"
             }

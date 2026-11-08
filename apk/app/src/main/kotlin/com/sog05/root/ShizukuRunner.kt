@@ -22,7 +22,7 @@ class ShizukuRunner(private val context: Context) {
         else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) State.PERMISSION_REQUIRED
         else State.READY
     } catch (_: Throwable) {
-        NOT_INSTALLED
+        State.NOT_INSTALLED
     }
 
     fun requestPermission() {

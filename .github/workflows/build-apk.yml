@@ -7,6 +7,7 @@ on:
       - 'apk/**'
       - 'tools/kspatch/**'
       - 'kernelsu.ko'
+      - 'out/kernelsu.ko'
       - 'sog05-5.4.210/bin/exploit_static'
       - '.github/workflows/build-apk.yml'
 
@@ -67,7 +68,11 @@ jobs:
           cp kspatch "$DEST/libkspatch.so"
           # The KernelSU module, carried as an asset (not a jniLib).
           mkdir -p apk/app/src/main/assets
-          cp kernelsu.ko apk/app/src/main/assets/kernelsu.ko
+          if [ -f out/kernelsu.ko ]; then
+            cp out/kernelsu.ko apk/app/src/main/assets/kernelsu.ko
+          else
+            cp kernelsu.ko apk/app/src/main/assets/kernelsu.ko
+          fi
           chmod +x "$DEST/libgl.so" "$DEST/libkspatch.so"
           ls -la "$DEST" apk/app/src/main/assets
 
