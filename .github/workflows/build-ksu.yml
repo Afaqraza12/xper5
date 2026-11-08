@@ -1,0 +1,79 @@
+name: Build KernelSU LKM (5.4)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ksu_branch:
+        description: 'KernelSU-Next branch'
+        required: true
+        default: 'next'
+  push:
+    paths:
+      - 'Module.symvers'
+      - 'kernel_config'
+      - '.github/workflows/build-ksu.yml'
+
+jobs:
+  build-lkm:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-11 lld-11 llvm-11 gcc-aarch64-linux-gnu \
+            make bc bison flex libssl-dev libelf-dev xz-utils
+
+      - name: Clone Sony Xperia SM8350 Android 13 kernel tree
+        run: |
+          git clone --depth=1 -b master_qcom_a13 https://github.com/Skyler1n/android_kernel_sony_sm8350.git kernel_tree
+
+      - name: Clone KernelSU-Next
+        run: |
+          git clone --depth=1 -b ${{ github.event.inputs.ksu_branch || 'next' }} https://github.com/KernelSU-Next/KernelSU-Next.git ksu
+
+      - name: Configure kernel tree matching device
+        run: |
+          cd kernel_tree
+          # Set exact sublevel 210 in Makefile
+          sed -i 's/SUBLEVEL = .*/SUBLEVEL = 210/' Makefile
+
+          # Copy our exact extracted kernel config and Module.symvers
+          cp ../kernel_config .config
+          cp ../Module.symvers Module.symvers
+
+          # Prepare include files
+          make ARCH=arm64 CC=clang-11 LD=lld-11 LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
+
+          # Force exact vermagic string matching the live Sony Xperia 5 III kernel
+          echo '#define UTS_RELEASE "5.4.210-qgki-g55a0c74ba38a"' > include/generated/utsrelease.h
+
+      - name: Compile kernelsu.ko module
+        run: |
+          cd kernel_tree
+          make ARCH=arm64 CC=clang-11 LD=lld-11 LLVM=1 LLVM_IAS=1 \
+            M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc)
+
+      - name: Inspect and strip module
+        run: |
+          KO_PATH="ksu/kernel/kernelsu.ko"
+          if [ -f "$KO_PATH" ]; then
+            echo "[+] Build succeeded! Inspecting kernelsu.ko:"
+            llvm-strip-11 --strip-debug "$KO_PATH"
+            strings "$KO_PATH" | grep -E "vermagic=" || true
+            mkdir -p out
+            cp "$KO_PATH" out/
+          else
+            echo "[-] Error: kernelsu.ko not found!"
+            exit 1
+          fi
+
+      - name: Upload kernelsu.ko artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernelsu-sog05-5.4.210
+          path: out/kernelsu.ko
