@@ -27,6 +27,14 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang-11 lld-11 llvm-11 gcc-aarch64-linux-gnu \
             make bc bison flex libssl-dev libelf-dev xz-utils
+          # Symlink LLVM 11 tools to standard names
+          sudo ln -sf /usr/bin/clang-11 /usr/local/bin/clang
+          sudo ln -sf /usr/bin/clang++-11 /usr/local/bin/clang++
+          sudo ln -sf /usr/bin/lld-11 /usr/local/bin/ld.lld
+          sudo ln -sf /usr/bin/llvm-ar-11 /usr/local/bin/llvm-ar
+          sudo ln -sf /usr/bin/llvm-nm-11 /usr/local/bin/llvm-nm
+          sudo ln -sf /usr/bin/llvm-objcopy-11 /usr/local/bin/llvm-objcopy
+          sudo ln -sf /usr/bin/llvm-strip-11 /usr/local/bin/llvm-strip
 
       - name: Clone Sony Xperia SM8350 Android 13 kernel tree
         run: |
@@ -45,10 +53,17 @@ jobs:
 
           # Copy our exact extracted kernel config and Module.symvers
           cp ../kernel_config .config
+          echo "CONFIG_KSU=m" >> .config
+          sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-qgki-g55a0c74ba38a"/' .config
+          sed -i 's/CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' .config
+
           cp ../Module.symvers Module.symvers
 
+          # Generate configuration headers non-interactively
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 olddefconfig
+
           # Prepare include files
-          make ARCH=arm64 CC=clang-11 LD=lld-11 LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
 
           # Force exact vermagic string matching the live Sony Xperia 5 III kernel
           echo '#define UTS_RELEASE "5.4.210-qgki-g55a0c74ba38a"' > include/generated/utsrelease.h
@@ -56,7 +71,7 @@ jobs:
       - name: Compile kernelsu.ko module
         run: |
           cd kernel_tree
-          make ARCH=arm64 CC=clang-11 LD=lld-11 LLVM=1 LLVM_IAS=1 \
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
             M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc)
 
       - name: Inspect and strip module
