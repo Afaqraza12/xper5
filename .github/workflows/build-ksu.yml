@@ -53,6 +53,9 @@ jobs:
           grep -rl "preempt_enable_no_resched_notrace" ksu/kernel/ | xargs sed -i 's/preempt_enable_no_resched_notrace/preempt_enable_notrace/g'
           # Disable path_umount injection so it uses standard ksys_umount
           sed -i 's/KSU_HAS_PATH_UMOUNT/KSU_DISABLE_PATH_UMOUNT/g' ksu/kernel/Kbuild ksu/kernel/feature/kernel_umount.c
+          # Force large memory model for all objects to prevent ARM64 ADRP relocation overflow (>2GB)
+          echo "ccflags-y += -fno-pic -mcmodel=large" >> ksu/kernel/Kbuild
+          echo "subdir-ccflags-y += -fno-pic -mcmodel=large" >> ksu/kernel/Kbuild
 
       - name: Configure kernel tree matching device
         run: |
@@ -94,6 +97,7 @@ jobs:
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
             CONFIG_KSU=m CONFIG_KSU_KPROBES_HOOK=y KBUILD_MODPOST_WARN=1 \
+            KCFLAGS="-fno-pic -mcmodel=large" \
             M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc) 2>&1 | tee /tmp/build.log
 
       - name: Inspect and strip module
@@ -102,7 +106,7 @@ jobs:
           echo "[+] Located module: $KO_PATH"
           if [ -n "$KO_PATH" ] && [ -f "$KO_PATH" ]; then
             echo "[+] Resolving unexported symbols using live device kallsyms..."
-            python3 scripts/resolve_symbols.py "$KO_PATH" kallsyms.gz
+            python3 scripts/resolve_symbols.py "$KO_PATH" kallsyms.gz Module.symvers
             echo "[+] Stripping debug symbols..."
             llvm-strip --strip-debug "$KO_PATH"
             strings "$KO_PATH" | grep -E "vermagic=" || true
