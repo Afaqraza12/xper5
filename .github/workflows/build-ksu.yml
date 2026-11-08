@@ -62,39 +62,39 @@ jobs:
           sed -i 's/#if defined(CONFIG_STACKPROTECTOR) &&/#if 0 \&\& defined(CONFIG_STACKPROTECTOR) \&\&/g' ksu/kernel/core/init.c
           # Provide internal _find_next_bit implementation to eliminate CFI type signature mismatch
           cat << 'EOF' >> ksu/kernel/compat/kernel_compat.c
-#ifndef BITMAP_FIRST_WORD_MASK
-#define BITMAP_FIRST_WORD_MASK(start) (~0UL << ((start) & (BITS_PER_LONG - 1)))
-#endif
-unsigned long _find_next_bit(const unsigned long *addr1,
-		const unsigned long *addr2, unsigned long nbits,
-		unsigned long start, unsigned long invert, unsigned long le)
-{
-	unsigned long tmp, mask;
-	if (start >= nbits)
-		return nbits;
-	tmp = addr1[start / BITS_PER_LONG];
-	if (addr2)
-		tmp &= addr2[start / BITS_PER_LONG];
-	tmp ^= invert;
-	mask = BITMAP_FIRST_WORD_MASK(start);
-	if (le)
-		mask = swab(mask);
-	tmp &= mask;
-	start = round_down(start, BITS_PER_LONG);
-	while (!tmp) {
-		start += BITS_PER_LONG;
-		if (start >= nbits)
-			return nbits;
-		tmp = addr1[start / BITS_PER_LONG];
-		if (addr2)
-			tmp &= addr2[start / BITS_PER_LONG];
-		tmp ^= invert;
-	}
-	if (le)
-		tmp = swab(tmp);
-	return min(start + __ffs(tmp), nbits);
-}
-EOF
+          #ifndef BITMAP_FIRST_WORD_MASK
+          #define BITMAP_FIRST_WORD_MASK(start) (~0UL << ((start) & (BITS_PER_LONG - 1)))
+          #endif
+          unsigned long _find_next_bit(const unsigned long *addr1,
+          		const unsigned long *addr2, unsigned long nbits,
+          		unsigned long start, unsigned long invert, unsigned long le)
+          {
+          	unsigned long tmp, mask;
+          	if (start >= nbits)
+          		return nbits;
+          	tmp = addr1[start / BITS_PER_LONG];
+          	if (addr2)
+          		tmp &= addr2[start / BITS_PER_LONG];
+          	tmp ^= invert;
+          	mask = BITMAP_FIRST_WORD_MASK(start);
+          	if (le)
+          		mask = swab(mask);
+          	tmp &= mask;
+          	start = round_down(start, BITS_PER_LONG);
+          	while (!tmp) {
+          		start += BITS_PER_LONG;
+          		if (start >= nbits)
+          			return nbits;
+          		tmp = addr1[start / BITS_PER_LONG];
+          		if (addr2)
+          			tmp &= addr2[start / BITS_PER_LONG];
+          		tmp ^= invert;
+          	}
+          	if (le)
+          		tmp = swab(tmp);
+          	return min(start + __ffs(tmp), nbits);
+          }
+          EOF
           # Force large memory model and recover from CFI checks to prevent traps
           echo "ccflags-y += -fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi" >> ksu/kernel/Kbuild
           echo "subdir-ccflags-y += -fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi" >> ksu/kernel/Kbuild
