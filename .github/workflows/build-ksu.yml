@@ -72,19 +72,17 @@ jobs:
 
       - name: Compile kernelsu.ko module
         run: |
+          set -o pipefail
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
             CONFIG_KSU=m CONFIG_KSU_KPROBES_HOOK=y \
-            M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc) 2>&1 | tee /tmp/build.log || {
-              echo "=== BUILD ERROR LOG ==="
-              tail -n 120 /tmp/build.log
-              exit 1
-            }
+            M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc) 2>&1 | tee /tmp/build.log
 
       - name: Inspect and strip module
         run: |
-          KO_PATH="ksu/kernel/kernelsu.ko"
-          if [ -f "$KO_PATH" ]; then
+          KO_PATH=$(find "$GITHUB_WORKSPACE/ksu" "$GITHUB_WORKSPACE/kernel_tree" -name "kernelsu.ko" -print -quit)
+          echo "[+] Located module: $KO_PATH"
+          if [ -n "$KO_PATH" ] && [ -f "$KO_PATH" ]; then
             echo "[+] Build succeeded! Inspecting kernelsu.ko:"
             llvm-strip --strip-debug "$KO_PATH"
             strings "$KO_PATH" | grep -E "vermagic=" || true
@@ -92,6 +90,7 @@ jobs:
             cp "$KO_PATH" out/
           else
             echo "[-] Error: kernelsu.ko not found!"
+            find . -name "*.ko" || true
             exit 1
           fi
 
@@ -103,6 +102,17 @@ jobs:
           git add -f out/kernelsu.ko
           git commit -m "chore(release): build kernelsu.ko for SOG05 5.4.210" || true
           git push -f origin binaries
+
+      - name: Upload log on failure
+        if: failure()
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B build-log
+          cp /tmp/build.log . || true
+          git add -f build.log || true
+          git commit -m "chore(ci): capture build failure log" || true
+          git push -f origin build-log || true
 
       - name: Upload kernelsu.ko artifact
         uses: actions/upload-artifact@v4
