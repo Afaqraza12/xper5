@@ -137,8 +137,8 @@ def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers", live_
             elif (st_shndx == SHN_UNDEF or st_shndx == SHN_ABS):
                 addr = None
                 if name in kallsyms and kallsyms[name] != 0:
-                    addr = kallsyms[name] + delta if kallsyms_path in ("kallsyms.txt", "kallsyms.gz") else kallsyms[name]
-                elif name in ref_kallsyms:
+                    addr = kallsyms[name] + delta
+                elif name in ref_kallsyms and ref_kallsyms[name] != 0:
                     addr = ref_kallsyms[name] + delta
 
                 if addr is not None:
