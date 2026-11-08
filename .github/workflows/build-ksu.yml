@@ -60,15 +60,53 @@ jobs:
           sed -i 's/kobject_del(&THIS_MODULE->mkobj.kobj);/\/* kobject_del(&THIS_MODULE->mkobj.kobj); *\//g' ksu/kernel/core/init.c
           # Disable ksu_setup_stack_chk_guard (stock kernel exports and protects __stack_chk_guard in read-only memory)
           sed -i 's/#if defined(CONFIG_STACKPROTECTOR) &&/#if 0 \&\& defined(CONFIG_STACKPROTECTOR) \&\&/g' ksu/kernel/core/init.c
-          # Prevent kernel BUG at kernel/cred.c:201 by skipping dying threads and using safe RCU in ksu_mark_running_process_locked
+          # Bypass unsafe task_struct list iteration in out-of-tree module (avoids task struct offset mismatch crash)
           python3 -c "
           with open('ksu/kernel/hook/hook_manager.c', 'r') as f:
               code = f.read()
-          old = '\t\tint uid = task_uid(t).val;\n\t\tconst struct cred *cred = get_task_cred(t);'
-          new = '\t\tif (t->flags & PF_EXITING)\n\t\t\tcontinue;\n\t\trcu_read_lock();\n\t\tconst struct cred *cred = __task_cred(t);\n\t\tif (!cred) {\n\t\t\trcu_read_unlock();\n\t\t\tcontinue;\n\t\t}\n\t\tint uid = cred->uid.val;'
-          code = code.replace(old, new).replace('\t\tput_cred(cred);', '\t\trcu_read_unlock();')
+          old_hpm = '''static void handle_process_mark(bool mark)
+{
+	struct task_struct *p, *t;
+	read_lock(&tasklist_lock);
+	for_each_process_thread(p, t) {
+		if (mark)
+			ksu_set_task_tracepoint_flag(t);
+		else
+			ksu_clear_task_tracepoint_flag(t);
+	}
+	read_unlock(&tasklist_lock);
+}'''
+          new_hpm = '''static void handle_process_mark(bool mark)
+{
+	(void)mark;
+}'''
+          if old_hpm in code:
+              code = code.replace(old_hpm, new_hpm, 1)
+
+          old_mrpl_start = 'static void ksu_mark_running_process_locked()'
+          old_mrpl_end = '\tread_unlock(&tasklist_lock);\n}'
+          start_idx = code.find(old_mrpl_start)
+          if start_idx != -1:
+              end_idx = code.find(old_mrpl_end, start_idx) + len(old_mrpl_end)
+              code = code[:start_idx] + 'static void ksu_mark_running_process_locked()\n{\n}' + code[end_idx:]
+
           with open('ksu/kernel/hook/hook_manager.c', 'w') as f:
               f.write(code)
+
+          with open('ksu/kernel/policy/app_profile.c', 'r') as f:
+              ap_code = f.read()
+          old_ap = '''#ifdef KSU_KPROBES_HOOK
+    for_each_thread (p, t) {
+        ksu_set_task_tracepoint_flag(t);
+    }
+#endif'''
+          new_ap = '''#ifdef KSU_KPROBES_HOOK
+    ksu_set_task_tracepoint_flag(current);
+#endif'''
+          if old_ap in ap_code:
+              ap_code = ap_code.replace(old_ap, new_ap, 1)
+          with open('ksu/kernel/policy/app_profile.c', 'w') as f:
+              f.write(ap_code)
           "
           # Provide internal _find_next_bit implementation to eliminate CFI type signature mismatch
           cat << 'EOF' >> ksu/kernel/compat/kernel_compat.c
