@@ -95,3 +95,4 @@ if adb shell "/data/local/tmp/su -c id" 2>/dev/null | grep -q "uid=0"; then
 else
     echo "[-] Exploit run did not yield uid=0. If device rebooted, run again."
 fi
+
