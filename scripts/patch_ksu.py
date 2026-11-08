@@ -121,6 +121,53 @@ def patch_ksu(ksu_dir="ksu"):
         with open(apk_sign_path, "w") as f:
             f.write(sign_code)
 
+    # 5. Patch manager/manager_identity.h: auto-crown first user app requesting manager access
+    mgr_id_path = os.path.join(ksu_dir, "kernel/manager/manager_identity.h")
+    if os.path.exists(mgr_id_path):
+        with open(mgr_id_path, "r") as f:
+            mgr_code = f.read()
+
+        old_im = """static inline bool is_manager()
+{
+\treturn unlikely(ksu_manager_appid == current_uid().val % KSU_PER_USER_RANGE);
+}
+
+static inline bool is_uid_manager(uid_t uid)
+{
+    return unlikely(ksu_manager_appid == uid % KSU_PER_USER_RANGE);
+}"""
+
+        new_im = """static inline bool is_manager()
+{
+\tif (unlikely(ksu_manager_appid == KSU_INVALID_APPID)) {
+\t\tif (current_uid().val >= 10000) {
+\t\t\tksu_manager_appid = current_uid().val % KSU_PER_USER_RANGE;
+\t\t\tpr_info("KernelSU: Auto-crowned manager uid=%d\\n", ksu_manager_appid);
+\t\t}
+\t}
+\treturn unlikely(ksu_manager_appid == current_uid().val % KSU_PER_USER_RANGE);
+}
+
+static inline bool is_uid_manager(uid_t uid)
+{
+\tif (unlikely(ksu_manager_appid == KSU_INVALID_APPID)) {
+\t\tif (uid >= 10000) {
+\t\t\tksu_manager_appid = uid % KSU_PER_USER_RANGE;
+\t\t\tpr_info("KernelSU: Auto-crowned manager uid=%d\\n", ksu_manager_appid);
+\t\t}
+\t}
+\treturn unlikely(ksu_manager_appid == uid % KSU_PER_USER_RANGE);
+}"""
+
+        if old_im in mgr_code:
+            mgr_code = mgr_code.replace(old_im, new_im, 1)
+            print("[+] Patched manager_identity.h for automatic first-call crowning")
+        else:
+            print("[-] Warning: manager_identity.h signatures not matched")
+
+        with open(mgr_id_path, "w") as f:
+            f.write(mgr_code)
+
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else "ksu"
     patch_ksu(target)

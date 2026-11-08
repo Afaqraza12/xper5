@@ -36,6 +36,9 @@ fi
 echo "[*] Transferring dynamically adapted kernelsu.ko to /data/local/tmp/..."
 adb push "${WORKSPACE_DIR}/kernelsu.ko" /data/local/tmp/kernelsu.ko
 
+echo "[*] Preparing /data/adb/ksu directory on device..."
+adb shell "/data/local/tmp/su -c 'mkdir -p /data/adb/ksu && chmod 755 /data/adb /data/adb/ksu'" 2>/dev/null || true
+
 echo "[*] Starting real-time dmesg capture to live_kernel.log..."
 adb shell "/data/local/tmp/su -c 'dmesg -w'" > "${WORKSPACE_DIR}/live_kernel.log" 2>&1 &
 LOGGER_PID=$!
