@@ -6,7 +6,7 @@ on:
       ksu_branch:
         description: 'KernelSU-Next branch'
         required: true
-        default: 'next'
+        default: 'legacy'
   push:
     paths:
       - 'Module.symvers'
@@ -34,7 +34,8 @@ jobs:
 
       - name: Clone KernelSU-Next
         run: |
-          git clone --depth=1 -b ${{ github.event.inputs.ksu_branch || 'next' }} https://github.com/KernelSU-Next/KernelSU-Next.git ksu
+          KSU_BRANCH="${{ github.event.inputs.ksu_branch || 'legacy' }}"
+          git clone --depth=1 -b "$KSU_BRANCH" https://github.com/KernelSU-Next/KernelSU-Next.git ksu
 
       - name: Configure kernel tree matching device
         run: |
@@ -77,3 +78,4 @@ jobs:
         with:
           name: kernelsu-sog05-5.4.210
           path: out/kernelsu.ko
+
