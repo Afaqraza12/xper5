@@ -155,7 +155,8 @@ jobs:
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
             CONFIG_KSU=m CONFIG_KSU_KPROBES_HOOK=y CONFIG_KSU_DEBUG=y KBUILD_MODPOST_WARN=1 \
-            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi" \
+            KSU_VERSION_OVERRIDE=34678 KSU_VERSION_TAG_OVERRIDE="v4.1.0" \
+            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi -DKSU_VERSION=34678" \
             M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc) 2>&1 | tee /tmp/build.log
 
       - name: Inspect and strip module

@@ -52,6 +52,16 @@ MODULE_STATUS=$(adb shell "/data/local/tmp/su -c 'cat /proc/modules'" 2>/dev/nul
 
 if [ -n "$MODULE_STATUS" ]; then
     echo "[+] Found loaded module: $MODULE_STATUS"
+    echo "[*] Auto-crowning manager app (ReSukiSU / OriginSU / KernelSU)..."
+    for pkg in com.resukisu.resukisu com.originsu.manager me.weishu.kernelsu; do
+        M_LINE=$(adb shell "/data/local/tmp/su -c 'grep -m1 ^$pkg\  /data/system/packages.list 2>/dev/null'" 2>/dev/null || true)
+        M_UID=$(echo "$M_LINE" | awk '{print $2}')
+        if [ -n "$M_UID" ]; then
+            echo "[+] Detected $pkg (UID $M_UID), crowning as manager in kernel..."
+            adb shell "/data/local/tmp/su -c 'echo $M_UID > /sys/module/kernelsu/parameters/ksu_debug_manager_appid'"
+            break
+        fi
+    done
     echo "[*] Checking KernelSU kernel initialization logs:"
     adb shell "/data/local/tmp/su -c 'dmesg | grep -i kernelsu | tail -n 20'" 2>/dev/null || true
     echo "=========================================================="
