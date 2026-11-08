@@ -121,52 +121,22 @@ def patch_ksu(ksu_dir="ksu"):
         with open(apk_sign_path, "w") as f:
             f.write(sign_code)
 
-    # 5. Patch manager/manager_identity.h: auto-crown first user app requesting manager access
-    mgr_id_path = os.path.join(ksu_dir, "kernel/manager/manager_identity.h")
-    if os.path.exists(mgr_id_path):
-        with open(mgr_id_path, "r") as f:
-            mgr_code = f.read()
+    # 5. Patch manager/throne_tracker.c: default manager appid to 10419 (ReSukiSU)
+    tracker_path = os.path.join(ksu_dir, "kernel/manager/throne_tracker.c")
+    if os.path.exists(tracker_path):
+        with open(tracker_path, "r") as f:
+            tt_code = f.read()
 
-        old_im = """static inline bool is_manager()
-{
-\treturn unlikely(ksu_manager_appid == current_uid().val % KSU_PER_USER_RANGE);
-}
-
-static inline bool is_uid_manager(uid_t uid)
-{
-    return unlikely(ksu_manager_appid == uid % KSU_PER_USER_RANGE);
-}"""
-
-        new_im = """static inline bool is_manager()
-{
-\tif (unlikely(ksu_manager_appid == KSU_INVALID_APPID)) {
-\t\tif (current_uid().val >= 10000) {
-\t\t\tksu_manager_appid = current_uid().val % KSU_PER_USER_RANGE;
-\t\t\tpr_info("KernelSU: Auto-crowned manager uid=%d\\n", ksu_manager_appid);
-\t\t}
-\t}
-\treturn unlikely(ksu_manager_appid == current_uid().val % KSU_PER_USER_RANGE);
-}
-
-static inline bool is_uid_manager(uid_t uid)
-{
-\tif (unlikely(ksu_manager_appid == KSU_INVALID_APPID)) {
-\t\tif (uid >= 10000) {
-\t\t\tksu_manager_appid = uid % KSU_PER_USER_RANGE;
-\t\t\tpr_info("KernelSU: Auto-crowned manager uid=%d\\n", ksu_manager_appid);
-\t\t}
-\t}
-\treturn unlikely(ksu_manager_appid == uid % KSU_PER_USER_RANGE);
-}"""
-
-        if old_im in mgr_code:
-            mgr_code = mgr_code.replace(old_im, new_im, 1)
-            print("[+] Patched manager_identity.h for automatic first-call crowning")
+        old_app_id = "uid_t ksu_manager_appid = KSU_INVALID_APPID;"
+        new_app_id = "uid_t ksu_manager_appid = 10419; // Default to ReSukiSU on SOG05"
+        if old_app_id in tt_code:
+            tt_code = tt_code.replace(old_app_id, new_app_id, 1)
+            print("[+] Patched default ksu_manager_appid to 10419 in throne_tracker.c")
         else:
-            print("[-] Warning: manager_identity.h signatures not matched")
+            print("[-] Warning: ksu_manager_appid signature not matched in throne_tracker.c")
 
-        with open(mgr_id_path, "w") as f:
-            f.write(mgr_code)
+        with open(tracker_path, "w") as f:
+            f.write(tt_code)
 
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else "ksu"

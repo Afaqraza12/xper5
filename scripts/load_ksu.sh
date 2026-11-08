@@ -36,8 +36,17 @@ fi
 echo "[*] Transferring dynamically adapted kernelsu.ko to /data/local/tmp/..."
 adb push "${WORKSPACE_DIR}/kernelsu.ko" /data/local/tmp/kernelsu.ko
 
+echo "[*] Cleaning up legacy Magisk artifacts from device..."
+adb shell "/data/local/tmp/su -c 'rm -rf /data/local/tmp/magisk* /data/adb/magisk'" 2>/dev/null || true
+
 echo "[*] Preparing /data/adb/ksu directory on device..."
 adb shell "/data/local/tmp/su -c 'mkdir -p /data/adb/ksu && chmod 755 /data/adb /data/adb/ksu'" 2>/dev/null || true
+
+if adb shell "cat /proc/modules" 2>/dev/null | grep -q "kernelsu"; then
+    echo "[*] Older kernelsu module detected in kernel. Unloading before inserting updated module..."
+    adb shell "/data/local/tmp/su -c 'rmmod kernelsu'" 2>/dev/null || true
+    sleep 1
+fi
 
 echo "[*] Starting real-time dmesg capture to live_kernel.log..."
 adb shell "/data/local/tmp/su -c 'dmesg -w'" > "${WORKSPACE_DIR}/live_kernel.log" 2>&1 &
@@ -57,8 +66,8 @@ if [ -n "$MODULE_STATUS" ]; then
     echo "[+] Found loaded module: $MODULE_STATUS"
     echo "[*] Auto-crowning manager app (ReSukiSU / OriginSU / KernelSU)..."
     for pkg in com.resukisu.resukisu com.originsu.manager me.weishu.kernelsu; do
-        M_LINE=$(adb shell "/data/local/tmp/su -c 'grep -m1 ^$pkg\  /data/system/packages.list 2>/dev/null'" 2>/dev/null || true)
-        M_UID=$(echo "$M_LINE" | awk '{print $2}')
+        M_LINE=$(adb shell "grep -m1 ^$pkg /data/system/packages.list 2>/dev/null || pm list packages -U | grep $pkg 2>/dev/null" 2>/dev/null || true)
+        M_UID=$(echo "$M_LINE" | grep -oE "[0-9]+" | tail -1 || true)
         if [ -n "$M_UID" ]; then
             echo "[+] Detected $pkg (UID $M_UID), crowning as manager in kernel..."
             adb shell "/data/local/tmp/su -c 'echo $M_UID > /sys/module/kernelsu/parameters/ksu_debug_manager_appid'"
