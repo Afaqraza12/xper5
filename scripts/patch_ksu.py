@@ -3,12 +3,12 @@ import sys
 import os
 
 def patch_ksu(ksu_dir="ksu"):
+    # 1. Patch hook_manager.c: avoid walking tasklist_lock with mismatched task_struct offsets
     hook_mgr_path = os.path.join(ksu_dir, "kernel/hook/hook_manager.c")
     if os.path.exists(hook_mgr_path):
         with open(hook_mgr_path, "r") as f:
             code = f.read()
 
-        # 1. Neutralize handle_process_mark
         old_hpm = """static void handle_process_mark(bool mark)
 {
 \tstruct task_struct *p, *t;
@@ -31,7 +31,6 @@ def patch_ksu(ksu_dir="ksu"):
         else:
             print("[-] Warning: handle_process_mark signature not matched exactly")
 
-        # 2. Neutralize ksu_mark_running_process_locked
         old_mrpl_start = "static void ksu_mark_running_process_locked()"
         old_mrpl_end = "\tread_unlock(&tasklist_lock);\n}"
         start_idx = code.find(old_mrpl_start)
@@ -45,6 +44,7 @@ def patch_ksu(ksu_dir="ksu"):
         with open(hook_mgr_path, "w") as f:
             f.write(code)
 
+    # 2. Patch app_profile.c: avoid walking thread_group on unknown struct offset
     app_prof_path = os.path.join(ksu_dir, "kernel/policy/app_profile.c")
     if os.path.exists(app_prof_path):
         with open(app_prof_path, "r") as f:
@@ -66,6 +66,42 @@ def patch_ksu(ksu_dir="ksu"):
 
         with open(app_prof_path, "w") as f:
             f.write(ap_code)
+
+    # 3. Patch throne_tracker.c: fix Linux 5.4 filldir_t return type (bool on 5.1+) and disable CFI on my_actor
+    tt_path = os.path.join(ksu_dir, "kernel/manager/throne_tracker.c")
+    if os.path.exists(tt_path):
+        with open(tt_path, "r") as f:
+            tt_code = f.read()
+
+        old_ver = "#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)\n#define FILLDIR_RETURN_TYPE bool"
+        new_ver = "#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)\n#define FILLDIR_RETURN_TYPE bool"
+        if old_ver in tt_code:
+            tt_code = tt_code.replace(old_ver, new_ver, 1)
+            print("[+] Patched FILLDIR_RETURN_TYPE for Linux 5.1+ in throne_tracker.c")
+
+        old_actor = "FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,"
+        new_actor = '__attribute__((no_sanitize("cfi")))\nFILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,'
+        if old_actor in tt_code:
+            tt_code = tt_code.replace(old_actor, new_actor, 1)
+            print("[+] Added no_sanitize(\"cfi\") to my_actor in throne_tracker.c")
+
+        with open(tt_path, "w") as f:
+            f.write(tt_code)
+
+    # 4. Patch core/init.c: prune allowlist without heavy blocking /data/app walk at late insmod
+    init_path = os.path.join(ksu_dir, "kernel/core/init.c")
+    if os.path.exists(init_path):
+        with open(init_path, "r") as f:
+            init_code = f.read()
+
+        old_tt = "track_throne(false);"
+        new_tt = "track_throne(true);"
+        if old_tt in init_code:
+            init_code = init_code.replace(old_tt, new_tt, 1)
+            print("[+] Patched init.c to use prune-only track_throne at late insmod")
+
+        with open(init_path, "w") as f:
+            f.write(init_code)
 
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else "ksu"

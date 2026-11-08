@@ -36,8 +36,16 @@ fi
 echo "[*] Transferring dynamically adapted kernelsu.ko to /data/local/tmp/..."
 adb push "${WORKSPACE_DIR}/kernelsu.ko" /data/local/tmp/kernelsu.ko
 
+echo "[*] Starting real-time dmesg capture to live_kernel.log..."
+adb shell "/data/local/tmp/su -c 'dmesg -w'" > "${WORKSPACE_DIR}/live_kernel.log" 2>&1 &
+LOGGER_PID=$!
+sleep 1
+
 echo "[*] Inserting module into live kernel..."
 adb shell "/data/local/tmp/su -c 'insmod /data/local/tmp/kernelsu.ko'" 2>&1 || true
+
+sleep 2
+kill $LOGGER_PID 2>/dev/null || true
 
 echo "[*] Verifying module in live kernel..."
 MODULE_STATUS=$(adb shell "/data/local/tmp/su -c 'cat /proc/modules'" 2>/dev/null | grep -i "kernelsu" || true)
