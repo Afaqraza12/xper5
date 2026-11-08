@@ -24,11 +24,6 @@
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
-        <!-- Runs as uid=shell inside Shizuku's process -->
-        <service
-            android:name=".RootService"
-            android:exported="false" />
-
         <activity
             android:name=".MainActivity"
             android:exported="true">
