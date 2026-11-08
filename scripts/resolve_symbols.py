@@ -41,6 +41,22 @@ def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers"):
                 if name not in kallsyms:
                     kallsyms[name] = addr
 
+    ref_kallsyms = {}
+    ref_path = "kallsyms.txt" if os.path.exists("kallsyms.txt") else ("kallsyms.gz" if os.path.exists("kallsyms.gz") else None)
+    if ref_path and os.path.abspath(ref_path) != os.path.abspath(kallsyms_path):
+        ref_opener = gzip.open(ref_path, "rt") if ref_path.endswith(".gz") else open(ref_path, "r")
+        with ref_opener as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 3:
+                    if parts[2] not in ref_kallsyms:
+                        ref_kallsyms[parts[2]] = int(parts[0], 16)
+
+    kaslr_slide = 0
+    if "_text" in kallsyms and "_text" in ref_kallsyms:
+        kaslr_slide = kallsyms["_text"] - ref_kallsyms["_text"]
+        print(f"[*] Detected live KASLR slide: 0x{kaslr_slide:x} (live _text: 0x{kallsyms['_text']:016x}, ref _text: 0x{ref_kallsyms['_text']:016x})")
+
     with open(ko_path, "rb") as f:
         data = bytearray(f.read())
 
@@ -95,13 +111,19 @@ def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers"):
                 if st_shndx != SHN_UNDEF or st_value != 0:
                     struct.pack_into("<IBBHQQ", data, sym_offset, st_name, st_info, st_other, SHN_UNDEF, 0, st_size)
                 still_undef.append(name)
-            elif st_shndx == SHN_UNDEF and name in kallsyms:
-                addr = kallsyms[name]
-                struct.pack_into("<IBBHQQ", data, sym_offset, st_name, st_info, st_other, SHN_ABS, addr, st_size)
-                resolved_count += 1
-                print(f"  [+] Resolved unexported {name} -> 0x{addr:016x} (SHN_ABS)")
-            elif st_shndx == SHN_UNDEF:
-                still_undef.append(name)
+            elif (st_shndx == SHN_UNDEF or st_shndx == SHN_ABS):
+                addr = None
+                if name in kallsyms and kallsyms[name] != 0:
+                    addr = kallsyms[name]
+                elif name in ref_kallsyms and kaslr_slide != 0:
+                    addr = ref_kallsyms[name] + kaslr_slide
+
+                if addr is not None:
+                    struct.pack_into("<IBBHQQ", data, sym_offset, st_name, st_info, st_other, SHN_ABS, addr, st_size)
+                    resolved_count += 1
+                    print(f"  [+] Resolved unexported {name} -> 0x{addr:016x} (SHN_ABS)")
+                elif st_shndx == SHN_UNDEF:
+                    still_undef.append(name)
 
     print(f"[*] Successfully resolved {resolved_count} unexported symbols to SHN_ABS!")
     if still_undef:

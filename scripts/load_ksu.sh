@@ -11,11 +11,30 @@ if [ ! -f "${WORKSPACE_DIR}/kernelsu.ko" ]; then
     exit 1
 fi
 
-echo "[*] Transferring kernelsu.ko to /data/local/tmp/..."
+echo "[*] Checking temporary root status..."
+if ! adb shell "/data/local/tmp/su -c id" 2>/dev/null | grep -q "uid=0"; then
+    echo "[-] Temporary root is not active! Running deploy_sog05.sh first..."
+    bash "${SCRIPT_DIR}/deploy_sog05.sh"
+fi
+
+echo "[*] Dumping live kernel symbol table from /proc/kallsyms..."
+adb shell "/data/local/tmp/su -c 'cat /proc/kallsyms'" > "${WORKSPACE_DIR}/live_kallsyms.txt"
+
+if ! grep -q -v "0000000000000000" "${WORKSPACE_DIR}/live_kallsyms.txt" 2>/dev/null; then
+    echo "[-] Warning: live_kallsyms.txt seems masked or empty! Checking..."
+fi
+
+echo "[*] Dynamically resolving symbols for current boot KASLR slide..."
+python3 "${WORKSPACE_DIR}/scripts/resolve_symbols.py" \
+    "${WORKSPACE_DIR}/kernelsu.ko" \
+    "${WORKSPACE_DIR}/live_kallsyms.txt" \
+    "${WORKSPACE_DIR}/Module.symvers"
+
+echo "[*] Transferring dynamically adapted kernelsu.ko to /data/local/tmp/..."
 adb push "${WORKSPACE_DIR}/kernelsu.ko" /data/local/tmp/kernelsu.ko
 
 echo "[*] Inserting module into live kernel..."
-adb shell "/data/local/tmp/su -c 'insmod /data/local/tmp/kernelsu.ko'" 2>&1 || adb shell "/system/bin/su -c 'insmod /data/local/tmp/kernelsu.ko'" 2>&1 || true
+adb shell "/data/local/tmp/su -c 'insmod /data/local/tmp/kernelsu.ko'" 2>&1 || true
 
 echo "[*] Verifying module in live kernel..."
 MODULE_STATUS=$(adb shell "/data/local/tmp/su -c 'cat /proc/modules'" 2>/dev/null | grep -i "kernelsu" || true)
