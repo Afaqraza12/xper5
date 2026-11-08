@@ -60,6 +60,16 @@ jobs:
           sed -i 's/kobject_del(&THIS_MODULE->mkobj.kobj);/\/* kobject_del(&THIS_MODULE->mkobj.kobj); *\//g' ksu/kernel/core/init.c
           # Disable ksu_setup_stack_chk_guard (stock kernel exports and protects __stack_chk_guard in read-only memory)
           sed -i 's/#if defined(CONFIG_STACKPROTECTOR) &&/#if 0 \&\& defined(CONFIG_STACKPROTECTOR) \&\&/g' ksu/kernel/core/init.c
+          # Prevent kernel BUG at kernel/cred.c:201 by skipping dying threads and using safe RCU in ksu_mark_running_process_locked
+          python3 -c "
+          with open('ksu/kernel/hook/hook_manager.c', 'r') as f:
+              code = f.read()
+          old = '\t\tint uid = task_uid(t).val;\n\t\tconst struct cred *cred = get_task_cred(t);'
+          new = '\t\tif (t->flags & PF_EXITING)\n\t\t\tcontinue;\n\t\trcu_read_lock();\n\t\tconst struct cred *cred = __task_cred(t);\n\t\tif (!cred) {\n\t\t\trcu_read_unlock();\n\t\t\tcontinue;\n\t\t}\n\t\tint uid = cred->uid.val;'
+          code = code.replace(old, new).replace('\t\tput_cred(cred);', '\t\trcu_read_unlock();')
+          with open('ksu/kernel/hook/hook_manager.c', 'w') as f:
+              f.write(code)
+          "
           # Provide internal _find_next_bit implementation to eliminate CFI type signature mismatch
           cat << 'EOF' >> ksu/kernel/compat/kernel_compat.c
           #ifndef BITMAP_FIRST_WORD_MASK
