@@ -70,6 +70,12 @@ jobs:
           # Force exact vermagic string matching the live Sony Xperia 5 III kernel
           echo '#define UTS_RELEASE "5.4.210-qgki-g55a0c74ba38a"' > include/generated/utsrelease.h
 
+          # Generate SELinux header files (flask.h & av_permissions.h) required by KernelSU
+          clang -Isecurity/selinux/include -Iinclude scripts/selinux/genheaders/genheaders.c -o scripts/selinux/genheaders/genheaders
+          scripts/selinux/genheaders/genheaders security/selinux/flask.h security/selinux/av_permissions.h
+          cp security/selinux/flask.h security/selinux/include/flask.h
+          cp security/selinux/av_permissions.h security/selinux/include/av_permissions.h
+
       - name: Compile kernelsu.ko module
         run: |
           set -o pipefail
