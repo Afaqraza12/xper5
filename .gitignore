@@ -1,0 +1,10 @@
+# ---- build outputs ----
+exploit/build/
+build/
+scripts/bin/
+dumps_*/
+
+.DS_Store
+.idea/
+*.swp
+*.o

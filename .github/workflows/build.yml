@@ -1,0 +1,35 @@
+name: Build exploit
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Project to build (e.g. sog05-5.4.210)'
+        required: true
+        default: 'sog05-5.4.210'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r27d
+
+      - name: Build
+        run: |
+          PROJ="${{ github.event.inputs.project || 'sog05-5.4.210' }}"
+          make -C exploit list-projects
+          make -C exploit PROJECT=$PROJ NDK_ROOT="${{ steps.setup-ndk.outputs.ndk-path }}" -j2 bin
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: exploit-bin
+          path: exploit/build/*/bin/exploit_static
