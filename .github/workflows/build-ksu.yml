@@ -46,6 +46,9 @@ jobs:
         run: |
           KSU_BRANCH="${{ github.event.inputs.ksu_branch || 'legacy' }}"
           git clone --depth=1 -b "$KSU_BRANCH" https://github.com/KernelSU-Next/KernelSU-Next.git ksu
+          # Fix Linux 5.4 undefined preempt_enable_no_resched_notrace
+          sed -i 's/preempt_enable_no_resched_notrace/preempt_enable_notrace/g' \
+            ksu/kernel/feature/sucompat.c ksu/kernel/hook/hook_manager.c
 
       - name: Configure kernel tree matching device
         run: |
