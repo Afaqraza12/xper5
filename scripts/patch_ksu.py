@@ -67,28 +67,7 @@ def patch_ksu(ksu_dir="ksu"):
         with open(app_prof_path, "w") as f:
             f.write(ap_code)
 
-    # 3. Patch throne_tracker.c: fix Linux 5.4 filldir_t return type (bool on 5.1+) and disable CFI on my_actor
-    tt_path = os.path.join(ksu_dir, "kernel/manager/throne_tracker.c")
-    if os.path.exists(tt_path):
-        with open(tt_path, "r") as f:
-            tt_code = f.read()
-
-        old_ver = "#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)\n#define FILLDIR_RETURN_TYPE bool"
-        new_ver = "#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)\n#define FILLDIR_RETURN_TYPE bool"
-        if old_ver in tt_code:
-            tt_code = tt_code.replace(old_ver, new_ver, 1)
-            print("[+] Patched FILLDIR_RETURN_TYPE for Linux 5.1+ in throne_tracker.c")
-
-        old_actor = "FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,"
-        new_actor = '__attribute__((no_sanitize("cfi")))\nFILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,'
-        if old_actor in tt_code:
-            tt_code = tt_code.replace(old_actor, new_actor, 1)
-            print("[+] Added no_sanitize(\"cfi\") to my_actor in throne_tracker.c")
-
-        with open(tt_path, "w") as f:
-            f.write(tt_code)
-
-    # 4. Patch core/init.c: prune allowlist without heavy blocking /data/app walk at late insmod
+    # 3. Patch core/init.c: prune allowlist without heavy blocking /data/app walk at late insmod
     init_path = os.path.join(ksu_dir, "kernel/core/init.c")
     if os.path.exists(init_path):
         with open(init_path, "r") as f:
