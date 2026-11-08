@@ -89,6 +89,38 @@ def patch_ksu(ksu_dir="ksu"):
         with open(init_path, "w") as f:
             f.write(init_code)
 
+    # 4. Patch manager/apk_sign.c: allow ReSukiSU and OriginSU manager packages
+    apk_sign_path = os.path.join(ksu_dir, "kernel/manager/apk_sign.c")
+    if os.path.exists(apk_sign_path):
+        with open(apk_sign_path, "r") as f:
+            sign_code = f.read()
+
+        old_ima = """bool is_manager_apk(char *path)
+{
+\treturn check_v2_signature(path, EXPECTED_MANAGER_SIZE, EXPECTED_MANAGER_HASH);
+}"""
+        new_ima = """bool is_manager_apk(char *path)
+{
+\tchar pkg[KSU_MAX_PACKAGE_NAME];
+\tif (get_pkg_from_apk_dir_path(pkg, path) == 0) {
+\t\tif (!strcmp(pkg, "com.resukisu.resukisu") ||
+\t\t    !strcmp(pkg, "com.originsu.manager") ||
+\t\t    !strcmp(pkg, "me.weishu.kernelsu")) {
+\t\t\tpr_info("Recognized manager apk: %s\\n", pkg);
+\t\t\treturn true;
+\t\t}
+\t}
+\treturn check_v2_signature(path, EXPECTED_MANAGER_SIZE, EXPECTED_MANAGER_HASH);
+}"""
+        if old_ima in sign_code:
+            sign_code = sign_code.replace(old_ima, new_ima, 1)
+            print("[+] Patched is_manager_apk to recognize ReSukiSU and OriginSU")
+        else:
+            print("[-] Warning: is_manager_apk signature not matched")
+
+        with open(apk_sign_path, "w") as f:
+            f.write(sign_code)
+
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else "ksu"
     patch_ksu(target)
