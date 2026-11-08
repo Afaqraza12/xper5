@@ -74,13 +74,13 @@ def main():
     for i, sym in enumerate(ksymtab_symbols):
         pos = normal_crc_off + i * 4
         crc = struct.unpack("<I", kernel_data[pos:pos+4])[0]
-        symvers_lines.append(f"0x{crc:08x}\t{sym}\tvmlinux\tEXPORT_SYMBOL\n")
+        symvers_lines.append(f"0x{crc:08x}\t{sym}\tvmlinux\tEXPORT_SYMBOL\t\n")
 
     # Process GPL symbols
     for i, sym in enumerate(ksymtab_gpl_symbols):
         pos = gpl_crc_off + i * 4
         crc = struct.unpack("<I", kernel_data[pos:pos+4])[0]
-        symvers_lines.append(f"0x{crc:08x}\t{sym}\tvmlinux\tEXPORT_SYMBOL_GPL\n")
+        symvers_lines.append(f"0x{crc:08x}\t{sym}\tvmlinux\tEXPORT_SYMBOL_GPL\t\n")
 
     print(f"[*] Writing {len(symvers_lines)} total symbol versions to {OUTPUT_PATH}...")
     with open(OUTPUT_PATH, "w") as f:

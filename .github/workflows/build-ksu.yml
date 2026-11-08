@@ -36,6 +36,9 @@ jobs:
           sudo ln -sf /usr/bin/llvm-ar-11 /usr/local/bin/llvm-ar
           sudo ln -sf /usr/bin/llvm-nm-11 /usr/local/bin/llvm-nm
           sudo ln -sf /usr/bin/llvm-objcopy-11 /usr/local/bin/llvm-objcopy
+          sudo ln -sf /usr/bin/llvm-objdump-11 /usr/local/bin/llvm-objdump
+          sudo ln -sf /usr/bin/llvm-readelf-11 /usr/local/bin/llvm-readelf
+          sudo ln -sf /usr/bin/llvm-size-11 /usr/local/bin/llvm-size
           sudo ln -sf /usr/bin/llvm-strip-11 /usr/local/bin/llvm-strip
 
       - name: Clone Sony Xperia SM8350 Android 13 kernel tree
