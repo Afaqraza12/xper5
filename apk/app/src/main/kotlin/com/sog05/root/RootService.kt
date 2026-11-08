@@ -112,9 +112,18 @@ class RootService(private val context: Context) : IRootService.Stub() {
         log(cb, "<s> staged kernelsu.ko (${stagedKo.length()} bytes)")
 
         if (alreadyLoaded()) {
-            log(cb, "<s> kernelsu already loaded; crowning manager and finishing")
-            crownManager(su, cb)
-            return 0
+            // A module from an earlier run may be stale (different kspatch
+            // output or a different KASLR base). Unload it and reload cleanly.
+            log(cb, "<b> kernelsu already loaded; unloading before reload")
+            val rmLog = File(work, "rmmod.log")
+            run(listOf(su.absolutePath, "-c", "rmmod kernelsu"), rmLog, cb)
+            Thread.sleep(800)
+            if (alreadyLoaded()) {
+                log(cb, "<s> kernelsu is still loaded; crowning manager and finishing")
+                crownManager(su, cb)
+                return 0
+            }
+            log(cb, "<s> previous module unloaded")
         }
 
         // --- stage 1+2: exploit (also prints the KASLR leak) ---
