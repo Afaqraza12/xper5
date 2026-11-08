@@ -4,8 +4,13 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-EXPLOIT_BIN="$REPO_ROOT/exploit/build/sog05-5.4.210/bin/exploit_static"
 BIN_DIR="$SCRIPT_DIR/bin"
+
+if [ -f "$REPO_ROOT/sog05-5.4.210/bin/exploit_static" ]; then
+    EXPLOIT_BIN="$REPO_ROOT/sog05-5.4.210/bin/exploit_static"
+else
+    EXPLOIT_BIN="$REPO_ROOT/exploit/build/sog05-5.4.210/bin/exploit_static"
+fi
 
 echo "=================================================="
 echo " GhostLock 5.4 Xperia (SOG05) Auto-Deploy & Root "
