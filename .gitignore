@@ -3,6 +3,11 @@ exploit/build/
 build/
 scripts/bin/
 dumps_*/
+backups/
+xperia_dump/
+*.img
+kallsyms.txt
+kernel_config.gz
 
 .DS_Store
 .idea/
