@@ -57,6 +57,8 @@ jobs:
           sed -i 's/setenforce(true);/\/* setenforce(true); *\//g' ksu/kernel/core/init.c
           # Prevent kobject_del on THIS_MODULE to preserve sysfs stability
           sed -i 's/kobject_del(&THIS_MODULE->mkobj.kobj);/\/* kobject_del(&THIS_MODULE->mkobj.kobj); *\//g' ksu/kernel/core/init.c
+          # Disable ksu_setup_stack_chk_guard (stock kernel exports and protects __stack_chk_guard in read-only memory)
+          sed -i 's/#if defined(CONFIG_STACKPROTECTOR) &&/#if 0 \&\& defined(CONFIG_STACKPROTECTOR) \&\&/g' ksu/kernel/core/init.c
           # Force large memory model for all objects to prevent ARM64 ADRP relocation overflow (>2GB)
           echo "ccflags-y += -fno-pic -mcmodel=large" >> ksu/kernel/Kbuild
           echo "subdir-ccflags-y += -fno-pic -mcmodel=large" >> ksu/kernel/Kbuild
