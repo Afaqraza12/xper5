@@ -49,32 +49,37 @@ jobs:
 
       - name: Configure kernel tree matching device
         run: |
-          cd kernel_tree
-          # Set exact sublevel 210 in Makefile
-          sed -i 's/SUBLEVEL = .*/SUBLEVEL = 210/' Makefile
+          set -o pipefail
+          {
+            cd kernel_tree
+            # Set exact sublevel 210 in Makefile
+            sed -i 's/SUBLEVEL = .*/SUBLEVEL = 210/' Makefile
 
-          # Copy our exact extracted kernel config and Module.symvers
-          cp ../kernel_config .config
-          echo "CONFIG_KSU=m" >> .config
-          sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-qgki-g55a0c74ba38a"/' .config
-          sed -i 's/CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' .config
+            # Copy our exact extracted kernel config and Module.symvers
+            cp ../kernel_config .config
+            echo "CONFIG_KSU=m" >> .config
+            sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-qgki-g55a0c74ba38a"/' .config
+            sed -i 's/CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' .config
 
-          cp ../Module.symvers Module.symvers
+            cp ../Module.symvers Module.symvers
 
-          # Generate configuration headers non-interactively
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 olddefconfig
+            # Generate configuration headers non-interactively
+            make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 olddefconfig
 
-          # Prepare include files
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
+            # Prepare include files
+            make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
 
-          # Force exact vermagic string matching the live Sony Xperia 5 III kernel
-          echo '#define UTS_RELEASE "5.4.210-qgki-g55a0c74ba38a"' > include/generated/utsrelease.h
+            # Generate SELinux header files (flask.h & av_permissions.h) required by KernelSU
+            make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 security/selinux/flask.h || {
+              clang -Iinclude/uapi -Iinclude -Isecurity/selinux/include scripts/selinux/genheaders/genheaders.c -o scripts/selinux/genheaders/genheaders
+              scripts/selinux/genheaders/genheaders security/selinux/flask.h security/selinux/av_permissions.h
+            }
+            cp -f security/selinux/flask.h security/selinux/include/flask.h || true
+            cp -f security/selinux/av_permissions.h security/selinux/include/av_permissions.h || true
 
-          # Generate SELinux header files (flask.h & av_permissions.h) required by KernelSU
-          clang -Isecurity/selinux/include -Iinclude scripts/selinux/genheaders/genheaders.c -o scripts/selinux/genheaders/genheaders
-          scripts/selinux/genheaders/genheaders security/selinux/flask.h security/selinux/av_permissions.h
-          cp security/selinux/flask.h security/selinux/include/flask.h
-          cp security/selinux/av_permissions.h security/selinux/include/av_permissions.h
+            # Force exact vermagic string matching the live Sony Xperia 5 III kernel
+            echo '#define UTS_RELEASE "5.4.210-qgki-g55a0c74ba38a"' > include/generated/utsrelease.h
+          } 2>&1 | tee /tmp/build.log
 
       - name: Compile kernelsu.ko module
         run: |
@@ -115,8 +120,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B build-log
-          cp /tmp/build.log . || true
-          git add -f build.log || true
+          touch /tmp/build.log
+          cp -f /tmp/build.log ./build.log
+          git add -f build.log
           git commit -m "chore(ci): capture build failure log" || true
           git push -f origin build-log || true
 
