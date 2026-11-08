@@ -12,6 +12,7 @@ on:
       - 'Module.symvers'
       - 'kernel_config'
       - '.github/workflows/build-ksu.yml'
+      - 'scripts/patch_ksu.py'
 
 jobs:
   build-lkm:
