@@ -11,6 +11,7 @@ on:
     paths:
       - 'Module.symvers'
       - 'kernel_config'
+      - 'kheaders.tar.xz'
       - '.github/workflows/build-ksu.yml'
       - 'scripts/patch_ksu.py'
 
@@ -132,6 +133,9 @@ jobs:
 
             # Prepare include files
             make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
+
+            # Overlay exact live device kernel headers from /sys/kernel/kheaders.tar.xz (fixes struct offsets)
+            tar -xf ../kheaders.tar.xz -C .
 
             # Generate SELinux header files (flask.h & av_permissions.h) required by KernelSU
             make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 security/selinux/flask.h || {

@@ -67,7 +67,8 @@ def patch_ksu(ksu_dir="ksu"):
         with open(app_prof_path, "w") as f:
             f.write(ap_code)
 
-    # 3. Patch core/init.c: prune allowlist without heavy blocking /data/app walk at late insmod
+    # 3. Patch core/init.c: prune allowlist without heavy blocking /data/app walk at late insmod,
+    # and disable selinux_hide to prevent hooking /sys/fs/selinux/context (protects system services)
     init_path = os.path.join(ksu_dir, "kernel/core/init.c")
     if os.path.exists(init_path):
         with open(init_path, "r") as f:
@@ -78,6 +79,12 @@ def patch_ksu(ksu_dir="ksu"):
         if old_tt in init_code:
             init_code = init_code.replace(old_tt, new_tt, 1)
             print("[+] Patched init.c to use prune-only track_throne at late insmod")
+
+        old_shi = "ksu_selinux_hide_init();"
+        new_shi = "/* ksu_selinux_hide_init(); */"
+        if old_shi in init_code:
+            init_code = init_code.replace(old_shi, new_shi, 1)
+            print("[+] Disabled ksu_selinux_hide_init in init.c")
 
         with open(init_path, "w") as f:
             f.write(init_code)
