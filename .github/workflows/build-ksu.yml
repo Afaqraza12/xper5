@@ -16,6 +16,8 @@ on:
 jobs:
   build-lkm:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -72,14 +74,19 @@ jobs:
         run: |
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
-            M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc)
+            CONFIG_KSU=m CONFIG_KSU_KPROBES_HOOK=y \
+            M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc) 2>&1 | tee /tmp/build.log || {
+              echo "=== BUILD ERROR LOG ==="
+              tail -n 120 /tmp/build.log
+              exit 1
+            }
 
       - name: Inspect and strip module
         run: |
           KO_PATH="ksu/kernel/kernelsu.ko"
           if [ -f "$KO_PATH" ]; then
             echo "[+] Build succeeded! Inspecting kernelsu.ko:"
-            llvm-strip-11 --strip-debug "$KO_PATH"
+            llvm-strip --strip-debug "$KO_PATH"
             strings "$KO_PATH" | grep -E "vermagic=" || true
             mkdir -p out
             cp "$KO_PATH" out/
@@ -87,6 +94,15 @@ jobs:
             echo "[-] Error: kernelsu.ko not found!"
             exit 1
           fi
+
+      - name: Commit kernelsu.ko to binaries branch
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B binaries
+          git add -f out/kernelsu.ko
+          git commit -m "chore(release): build kernelsu.ko for SOG05 5.4.210" || true
+          git push -f origin binaries
 
       - name: Upload kernelsu.ko artifact
         uses: actions/upload-artifact@v4
