@@ -53,6 +53,10 @@ jobs:
           grep -rl "preempt_enable_no_resched_notrace" ksu/kernel/ | xargs sed -i 's/preempt_enable_no_resched_notrace/preempt_enable_notrace/g'
           # Disable path_umount injection so it uses standard ksys_umount
           sed -i 's/KSU_HAS_PATH_UMOUNT/KSU_DISABLE_PATH_UMOUNT/g' ksu/kernel/Kbuild ksu/kernel/feature/kernel_umount.c
+          # Prevent forcing SELinux enforcing mode on permissive OEM systems (avoids userland reboot)
+          sed -i 's/setenforce(true);/\/* setenforce(true); *\//g' ksu/kernel/core/init.c
+          # Prevent kobject_del on THIS_MODULE to preserve sysfs stability
+          sed -i 's/kobject_del(&THIS_MODULE->mkobj.kobj);/\/* kobject_del(&THIS_MODULE->mkobj.kobj); *\//g' ksu/kernel/core/init.c
           # Force large memory model for all objects to prevent ARM64 ADRP relocation overflow (>2GB)
           echo "ccflags-y += -fno-pic -mcmodel=large" >> ksu/kernel/Kbuild
           echo "subdir-ccflags-y += -fno-pic -mcmodel=large" >> ksu/kernel/Kbuild
@@ -68,6 +72,7 @@ jobs:
             # Copy our exact extracted kernel config and Module.symvers
             cp ../kernel_config .config
             echo "CONFIG_KSU=m" >> .config
+            echo "CONFIG_KSU_DEBUG=y" >> .config
             sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-qgki-g55a0c74ba38a"/' .config
             sed -i 's/CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' .config
 
@@ -96,7 +101,7 @@ jobs:
           set -o pipefail
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
-            CONFIG_KSU=m CONFIG_KSU_KPROBES_HOOK=y KBUILD_MODPOST_WARN=1 \
+            CONFIG_KSU=m CONFIG_KSU_KPROBES_HOOK=y CONFIG_KSU_DEBUG=y KBUILD_MODPOST_WARN=1 \
             KCFLAGS="-fno-pic -mcmodel=large" \
             M=$GITHUB_WORKSPACE/ksu/kernel modules -j$(nproc) 2>&1 | tee /tmp/build.log
 
