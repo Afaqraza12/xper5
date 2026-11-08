@@ -94,6 +94,14 @@ jobs:
           		tmp = swab(tmp);
           	return min(start + __ffs(tmp), nbits);
           }
+          __attribute__((no_sanitize("cfi")))
+          void __cfi_slowpath_diag(unsigned long long id, void *ptr, void *diag)
+          {
+          }
+          __attribute__((no_sanitize("cfi")))
+          void __ubsan_handle_cfi_check_fail(void *data, void *ptr, void *vtable)
+          {
+          }
           EOF
           # Force large memory model and recover from CFI checks to prevent traps
           echo "ccflags-y += -fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi" >> ksu/kernel/Kbuild
