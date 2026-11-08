@@ -138,6 +138,41 @@ def patch_ksu(ksu_dir="ksu"):
         with open(tracker_path, "w") as f:
             f.write(tt_code)
 
+    # 6. Patch policy/allowlist.c: accept and auto-migrate app_profile version 2 & 3 from ReSukiSU
+    allowlist_path = os.path.join(ksu_dir, "kernel/policy/allowlist.c")
+    if os.path.exists(allowlist_path):
+        with open(allowlist_path, "r") as f:
+            al_code = f.read()
+
+        old_set_prof = """int ksu_set_app_profile(struct app_profile *profile)
+{
+    struct perm_data *p, *np;
+    int result = 0;
+
+    if (!profile_valid(profile)) {"""
+
+        new_set_prof = """static void migrate_profile(u32 version, struct app_profile *profile);
+
+int ksu_set_app_profile(struct app_profile *profile)
+{
+    struct perm_data *p, *np;
+    int result = 0;
+
+    if (profile && profile->version >= 2 && profile->version < KSU_APP_PROFILE_VER) {
+        migrate_profile(profile->version, profile);
+    }
+
+    if (!profile_valid(profile)) {"""
+
+        if old_set_prof in al_code:
+            al_code = al_code.replace(old_set_prof, new_set_prof, 1)
+            print("[+] Patched ksu_set_app_profile to support profile version 2/3 migration")
+        else:
+            print("[-] Warning: ksu_set_app_profile signature not matched in allowlist.c")
+
+        with open(allowlist_path, "w") as f:
+            f.write(al_code)
+
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else "ksu"
     patch_ksu(target)
