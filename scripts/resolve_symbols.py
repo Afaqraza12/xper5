@@ -12,7 +12,18 @@ SHN_UNDEF = 0
 SHN_ABS = 0xfff1
 SHT_SYMTAB = 2
 
-def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers"):
+def get_live_text_base():
+    try:
+        import subprocess, re
+        res = subprocess.run(['adb', 'shell', 'DIAG_LEAK_ONLY=1 /data/local/tmp/gl'], capture_output=True, text=True, timeout=5)
+        m = re.search(r'text_base=([0-9a-fA-F]+)', res.stdout)
+        if m:
+            return int(m.group(1), 16)
+    except Exception:
+        pass
+    return None
+
+def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers", live_base_arg=None):
     print(f"[*] Resolving symbols for {ko_path} using {kallsyms_path}...")
     if not os.path.exists(ko_path):
         print(f"[-] Error: {ko_path} not found!")
@@ -43,7 +54,7 @@ def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers"):
 
     ref_kallsyms = {}
     ref_path = "kallsyms.txt" if os.path.exists("kallsyms.txt") else ("kallsyms.gz" if os.path.exists("kallsyms.gz") else None)
-    if ref_path and os.path.abspath(ref_path) != os.path.abspath(kallsyms_path):
+    if ref_path:
         ref_opener = gzip.open(ref_path, "rt") if ref_path.endswith(".gz") else open(ref_path, "r")
         with ref_opener as f:
             for line in f:
@@ -52,10 +63,22 @@ def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers"):
                     if parts[2] not in ref_kallsyms:
                         ref_kallsyms[parts[2]] = int(parts[0], 16)
 
-    kaslr_slide = 0
-    if "_text" in kallsyms and "_text" in ref_kallsyms:
-        kaslr_slide = kallsyms["_text"] - ref_kallsyms["_text"]
-        print(f"[*] Detected live KASLR slide: 0x{kaslr_slide:x} (live _text: 0x{kallsyms['_text']:016x}, ref _text: 0x{ref_kallsyms['_text']:016x})")
+    # Determine live text base
+    live_base = None
+    if live_base_arg:
+        live_base = int(live_base_arg, 16) if isinstance(live_base_arg, str) else live_base_arg
+    elif "_text" in kallsyms and kallsyms["_text"] != 0 and os.path.basename(kallsyms_path) not in ("kallsyms.txt", "kallsyms.gz"):
+        live_base = kallsyms["_text"] - 0x80000
+    else:
+        live_base = get_live_text_base()
+
+    ref_base = (ref_kallsyms.get("_text", 0) - 0x80000) if "_text" in ref_kallsyms else 0xffffffed12000000
+    delta = 0
+    if live_base:
+        delta = live_base - ref_base
+        print(f"[*] Live kernel text_base: 0x{live_base:016x} (ref_base: 0x{ref_base:016x}, KASLR delta: 0x{delta:x})")
+    else:
+        print("[*] Warning: Could not detect live kernel base. Assuming static addresses.")
 
     with open(ko_path, "rb") as f:
         data = bytearray(f.read())
@@ -114,9 +137,9 @@ def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers"):
             elif (st_shndx == SHN_UNDEF or st_shndx == SHN_ABS):
                 addr = None
                 if name in kallsyms and kallsyms[name] != 0:
-                    addr = kallsyms[name]
-                elif name in ref_kallsyms and kaslr_slide != 0:
-                    addr = ref_kallsyms[name] + kaslr_slide
+                    addr = kallsyms[name] + delta if kallsyms_path in ("kallsyms.txt", "kallsyms.gz") else kallsyms[name]
+                elif name in ref_kallsyms:
+                    addr = ref_kallsyms[name] + delta
 
                 if addr is not None:
                     struct.pack_into("<IBBHQQ", data, sym_offset, st_name, st_info, st_other, SHN_ABS, addr, st_size)
@@ -139,7 +162,8 @@ def resolve_symbols(ko_path, kallsyms_path, symvers_path="Module.symvers"):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: resolve_symbols.py <kernelsu.ko> <kallsyms.txt> [Module.symvers]")
+        print("Usage: resolve_symbols.py <kernelsu.ko> <kallsyms.txt> [Module.symvers] [live_base_hex]")
         sys.exit(1)
     symvers = sys.argv[3] if len(sys.argv) > 3 else "Module.symvers"
-    resolve_symbols(sys.argv[1], sys.argv[2], symvers)
+    live_base = sys.argv[4] if len(sys.argv) > 4 else None
+    resolve_symbols(sys.argv[1], sys.argv[2], symvers, live_base)
