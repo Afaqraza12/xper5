@@ -24,12 +24,6 @@ border_width = 1
 background_color = #f43f5e 80
 border_color = #fb7185 80
 
-# Background 5: Tooltip
-rounded = 4
-border_width = 1
-background_color = #042f2e 95
-border_color = #14b8a6 80
-
 # Panel
 panel_monitor = all
 panel_position = bottom center horizontal
@@ -74,18 +68,9 @@ task_urgent_font_color = #ffffff 100
 # Clock
 time1_format = %H:%M  •  %a %b %d
 time1_font = Sans Bold 11
-time1_font_color = #5eead4 100
-time1_padding = 8 0
-time1_background_id = 0
-time1_timezone = 
-
-# Battery
-battery_low_status = 20
-battery_low_cmd = notify-send "Battery Low"
-battery_font = Sans 10
-battery_font_color = #a7f3d0 100
-battery_padding = 6 0
-battery_background_id = 0
+clock_font_color = #5eead4 100
+clock_padding = 8 0
+clock_background_id = 0
 
 # Panel Items: Taskbar, Clock
-panel_items = TSC
+panel_items = TC

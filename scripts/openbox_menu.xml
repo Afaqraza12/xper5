@@ -17,7 +17,7 @@
         <command>aterm -fn 10x20 -geometry 75x38+30+60 -title "ART VM Android 17" -bg "#0c191f" -fg "#facc15" -cr "#38bdf8" -e /system/bin/sh -c "chroot /data/lineage/mnt /system/bin/dalvikvm64 -showversion; echo ''; echo 'Press Enter to close...'; read line"</command>
       </action>
     </item>
-    <separator label="Appearance & Display" />
+    <separator label="Appearance &amp; Display" />
     <item label="Restore Teal Wallpaper">
       <action name="Execute">
         <command>feh --bg-fill /data/adb/ghostboot/wallpaper.jpg</command>
@@ -34,3 +34,4 @@
     </item>
   </menu>
 </openbox_menu>
+
