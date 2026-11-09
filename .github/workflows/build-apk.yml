@@ -88,8 +88,20 @@ jobs:
         run: |
           set -e
           mkdir -p "$HOME/gradle-dist"
-          curl -sSL --retry 5 --retry-delay 3 -o /tmp/gradle.zip \
-            https://github.com/gradle/gradle-distributions/releases/download/v8.9.0/gradle-8.9-bin.zip
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i: downloading Gradle 8.9..."
+            curl -fL --retry 3 -o /tmp/gradle.zip \
+              https://github.com/gradle/gradle-distributions/releases/download/v8.9.0/gradle-8.9-bin.zip || \
+            wget -q -c -O /tmp/gradle.zip \
+              https://github.com/gradle/gradle-distributions/releases/download/v8.9.0/gradle-8.9-bin.zip || true
+            if unzip -t /tmp/gradle.zip >/dev/null 2>&1; then
+              echo "Gradle zip downloaded and verified successfully."
+              break
+            fi
+            echo "Download failed verification, retrying..."
+            rm -f /tmp/gradle.zip
+            sleep 3
+          done
           unzip -q /tmp/gradle.zip -d "$HOME/gradle-dist"
           echo "$HOME/gradle-dist/gradle-8.9/bin" >> "$GITHUB_PATH"
 
