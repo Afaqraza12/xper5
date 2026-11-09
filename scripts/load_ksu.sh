@@ -85,6 +85,14 @@ if [ -n "$MODULE_STATUS" ]; then
     adb shell "/data/local/tmp/su -c 'dmesg | grep -i kernelsu | tail -n 20'" 2>/dev/null || true
     
     if adb shell "[ -f /data/adb/ksud ]" 2>/dev/null; then
+        echo "[*] Configuring SELinux policies for LSPosed & userspace daemons..."
+        adb shell "/data/local/tmp/su -c '/data/adb/ksud sepolicy patch \"permissive kernel\"'" 2>/dev/null || true
+        adb shell "/data/local/tmp/su -c '/data/adb/ksud sepolicy patch \"allow kernel service_manager_type service_manager { add find }\"'" 2>/dev/null || true
+        adb shell "/data/local/tmp/su -c '/data/adb/ksud sepolicy patch \"allow kernel default_android_service service_manager { add find }\"'" 2>/dev/null || true
+        adb shell "/data/local/tmp/su -c '/data/adb/ksud sepolicy patch \"allow kernel serial_service service_manager { add find }\"'" 2>/dev/null || true
+        adb shell "/data/local/tmp/su -c '/data/adb/ksud sepolicy patch \"allow kernel package_service service_manager { add find }\"'" 2>/dev/null || true
+        adb shell "/data/local/tmp/su -c 'sed -i \"s/--propagation slave //g\" /data/adb/modules/zygisk_lsposed/service.sh 2>/dev/null || true'" 2>/dev/null || true
+
         echo "[*] Initializing KernelSU userspace daemon & modules..."
         adb shell "/data/local/tmp/su -c 'chmod 755 /data/adb/ksud && nohup /data/adb/ksud post-fs-data >/dev/null 2>&1 &'" 2>/dev/null || true
         sleep 2

@@ -209,8 +209,12 @@ class RootService : IRootService.Stub {
         // --- stage 7: initialize KernelSU userspace daemon & modules ---
         val ksud = File("/data/adb/ksud")
         if (ksud.exists() || runCatching { runCapture(listOf(su.absolutePath, "-c", "[ -f /data/adb/ksud ] && echo ok")).contains("ok") }.getOrDefault(false)) {
-            log(cb, "<b> stage 7: starting KernelSU modules daemon")
+            log(cb, "<b> stage 7: configuring SELinux and starting modules daemon")
             val ksudLog = File(work, "ksud_init.log")
+            run(listOf(su.absolutePath, "-c", "/data/adb/ksud sepolicy patch \"permissive kernel\""), ksudLog, cb)
+            run(listOf(su.absolutePath, "-c", "/data/adb/ksud sepolicy patch \"allow kernel service_manager_type service_manager { add find }\""), ksudLog, cb)
+            run(listOf(su.absolutePath, "-c", "/data/adb/ksud sepolicy patch \"allow kernel default_android_service service_manager { add find }\""), ksudLog, cb)
+            run(listOf(su.absolutePath, "-c", "sed -i 's/--propagation slave //g' /data/adb/modules/zygisk_lsposed/service.sh 2>/dev/null || true"), ksudLog, cb)
             run(listOf(su.absolutePath, "-c", "chmod 755 /data/adb/ksud && nohup /data/adb/ksud post-fs-data >/dev/null 2>&1 &"), ksudLog, cb)
             Thread.sleep(1500)
             run(listOf(su.absolutePath, "-c", "nohup /data/adb/ksud services >/dev/null 2>&1 &"), ksudLog, cb)
