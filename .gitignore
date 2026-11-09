@@ -13,3 +13,4 @@ kernel_config.gz
 .idea/
 *.swp
 *.o
+dsu_staging/
