@@ -205,6 +205,19 @@ class RootService : IRootService.Stub {
 
         // --- stage 6: crown manager app ---
         crownManager(su, cb)
+
+        // --- stage 7: initialize KernelSU userspace daemon & modules ---
+        val ksud = File("/data/adb/ksud")
+        if (ksud.exists() || runCatching { runCapture(listOf(su.absolutePath, "-c", "[ -f /data/adb/ksud ] && echo ok")).contains("ok") }.getOrDefault(false)) {
+            log(cb, "<b> stage 7: starting KernelSU modules daemon")
+            val ksudLog = File(work, "ksud_init.log")
+            run(listOf(su.absolutePath, "-c", "chmod 755 /data/adb/ksud && nohup /data/adb/ksud post-fs-data >/dev/null 2>&1 &"), ksudLog, cb)
+            Thread.sleep(1500)
+            run(listOf(su.absolutePath, "-c", "nohup /data/adb/ksud services >/dev/null 2>&1 &"), ksudLog, cb)
+            run(listOf(su.absolutePath, "-c", "nohup /data/adb/ksud boot-completed >/dev/null 2>&1 &"), ksudLog, cb)
+            log(cb, "<s> KernelSU modules daemon initialized")
+        }
+
         log(cb, "<s> SUCCESS! Open ReSukiSU to manage superuser permissions.")
         return 0
     }

@@ -83,6 +83,15 @@ if [ -n "$MODULE_STATUS" ]; then
     done
     echo "[*] Checking KernelSU kernel initialization logs:"
     adb shell "/data/local/tmp/su -c 'dmesg | grep -i kernelsu | tail -n 20'" 2>/dev/null || true
+    
+    if adb shell "[ -f /data/adb/ksud ]" 2>/dev/null; then
+        echo "[*] Initializing KernelSU userspace daemon & modules..."
+        adb shell "/data/local/tmp/su -c 'chmod 755 /data/adb/ksud && nohup /data/adb/ksud post-fs-data >/dev/null 2>&1 &'" 2>/dev/null || true
+        sleep 2
+        adb shell "/data/local/tmp/su -c 'nohup /data/adb/ksud services >/dev/null 2>&1 &'" 2>/dev/null || true
+        adb shell "/data/local/tmp/su -c 'nohup /data/adb/ksud boot-completed >/dev/null 2>&1 &'" 2>/dev/null || true
+    fi
+
     echo "=========================================================="
     echo "[+] SUCCESS! KernelSU is loaded into the kernel."
     echo "[+] You can now open ReSukiSU on your phone to manage root permissions."
