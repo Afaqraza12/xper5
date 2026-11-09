@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="LineageOS 24">
+    <separator label="LineageOS 24 (Android 17)" />
+    <item label="LineageOS 24 Root Terminal">
+      <action name="Execute">
+        <command>aterm -fn 10x20 -geometry 75x38+30+60 -title "LineageOS 24 Terminal" -bg "#0c191f" -fg "#6ee7b7" -cr "#38bdf8" -e /data/adb/ghostboot/lineage_shell.sh</command>
+      </action>
+    </item>
+    <item label="System Diagnostics (GhostBoot)">
+      <action name="Execute">
+        <command>aterm -fn 10x20 -geometry 75x38+30+60 -title "GhostBoot Info" -bg "#0c191f" -fg "#38bdf8" -cr "#6ee7b7" -e /system/bin/sh -c "/data/lineage/mnt/system/bin/ghostboot-info; echo ''; echo 'Press Enter to close...'; read line"</command>
+      </action>
+    </item>
+    <item label="Android 17 ART VM Status">
+      <action name="Execute">
+        <command>aterm -fn 10x20 -geometry 75x38+30+60 -title "ART VM Android 17" -bg "#0c191f" -fg "#facc15" -cr "#38bdf8" -e /system/bin/sh -c "chroot /data/lineage/mnt /system/bin/dalvikvm64 -showversion; echo ''; echo 'Press Enter to close...'; read line"</command>
+      </action>
+    </item>
+    <separator label="Appearance & Display" />
+    <item label="Restore Teal Wallpaper">
+      <action name="Execute">
+        <command>feh --bg-fill /data/adb/ghostboot/wallpaper.jpg</command>
+      </action>
+    </item>
+    <separator label="Dual-OS Switch" />
+    <item label="Switch to Stock Android (One UI)">
+      <action name="Execute">
+        <command>am start -a android.intent.action.MAIN -c android.intent.category.HOME</command>
+      </action>
+    </item>
+    <item label="Restart LineageOS Desktop">
+      <action name="Restart" />
+    </item>
+  </menu>
+</openbox_menu>

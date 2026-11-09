@@ -1,0 +1,91 @@
+# LineageOS 24 (Android 17) pdx214 Tint2 Theme
+
+# Background 1: Panel
+rounded = 0
+border_width = 0
+background_color = #0a1417 90
+border_color = #14b8a6 40
+
+# Background 2: Default task
+rounded = 4
+border_width = 1
+background_color = #13242a 60
+border_color = #0d9488 40
+
+# Background 3: Active task
+rounded = 4
+border_width = 1
+background_color = #0f766e 80
+border_color = #2dd4bf 80
+
+# Background 4: Urgent task
+rounded = 4
+border_width = 1
+background_color = #f43f5e 80
+border_color = #fb7185 80
+
+# Background 5: Tooltip
+rounded = 4
+border_width = 1
+background_color = #042f2e 95
+border_color = #14b8a6 80
+
+# Panel
+panel_monitor = all
+panel_position = bottom center horizontal
+panel_size = 100% 48
+panel_margin = 0 0
+panel_padding = 4 2 4
+panel_background_id = 1
+panel_dock = 0
+wm_menu = 1
+panel_layer = top
+strut_policy = follow_size
+
+# Taskbar
+taskbar_mode = single_desktop
+taskbar_padding = 2 2 2
+taskbar_background_id = 0
+taskbar_active_background_id = 0
+taskbar_name = 1
+taskbar_hide_if_empty = 0
+taskbar_name_padding = 8 2
+taskbar_name_background_id = 0
+taskbar_name_active_background_id = 0
+taskbar_name_font = Sans 10
+taskbar_name_font_color = #2dd4bf 100
+taskbar_name_active_font_color = #ffffff 100
+
+# Tasks
+task_icon = 1
+task_text = 1
+task_centered = 1
+task_maximum_size = 200 40
+task_padding = 6 3
+task_background_id = 2
+task_active_background_id = 3
+task_urgent_background_id = 4
+task_iconified_background_id = 2
+task_font = Sans 10
+task_font_color = #99f6e4 80
+task_active_font_color = #ffffff 100
+task_urgent_font_color = #ffffff 100
+
+# Clock
+time1_format = %H:%M  •  %a %b %d
+time1_font = Sans Bold 11
+time1_font_color = #5eead4 100
+time1_padding = 8 0
+time1_background_id = 0
+time1_timezone = 
+
+# Battery
+battery_low_status = 20
+battery_low_cmd = notify-send "Battery Low"
+battery_font = Sans 10
+battery_font_color = #a7f3d0 100
+battery_padding = 6 0
+battery_background_id = 0
+
+# Panel Items: Taskbar, Clock
+panel_items = TSC

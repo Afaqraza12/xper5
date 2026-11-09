@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>LineageOS 24.0 (Android 17) - pdx214</title>
+    <style>
+        :root {
+            --primary: #00bcd4;
+            --primary-dark: #008ba3;
+            --accent: #26a69a;
+            --bg-glass: rgba(18, 24, 38, 0.85);
+            --border-glass: rgba(255, 255, 255, 0.12);
+            --text-main: #f0f4f8;
+            --text-dim: #90a4ae;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        }
+
+        body {
+            background: #0f172a url('/wallpaper.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: var(--text-main);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            height: 38px;
+            padding: 0 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            z-index: 100;
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge-17 {
+            background: linear-gradient(135deg, #00e5ff, #1de9b6);
+            color: #000;
+            font-weight: 800;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 12px;
+            text-transform: uppercase;
+        }
+
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-dim);
+        }
+
+        /* Desktop Widget Area */
+        .workspace {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            gap: 16px;
+            overflow-y: auto;
+        }
+
+        .clock-widget {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .clock-time {
+            font-size: 54px;
+            font-weight: 300;
+            line-height: 1;
+        }
+
+        .clock-date {
+            font-size: 15px;
+            color: var(--text-dim);
+            margin-top: 6px;
+            font-weight: 400;
+        }
+
+        /* Modder Banner Card */
+        .banner-card {
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glass);
+            border-radius: 18px;
+            padding: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .banner-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .banner-card p {
+            font-size: 12px;
+            color: var(--text-dim);
+            line-height: 1.4;
+        }
+
+        /* Modal Dialogs */
+        .window {
+            display: none;
+            position: fixed;
+            top: 50px;
+            left: 16px;
+            right: 16px;
+            bottom: 96px;
+            background: #111827;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 50;
+        }
+
+        .window.active {
+            display: flex;
+        }
+
+        .window-header {
+            background: #1f2937;
+            padding: 14px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .window-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .window-close {
+            background: #374151;
+            border: none;
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 14px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .window-body {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            font-size: 13px;
+        }
+
+        /* Terminal Console */
+        .terminal-box {
+            background: #000;
+            border-radius: 12px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #10b981;
+            min-height: 200px;
+            max-height: 320px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-bottom: 12px;
+            border: 1px solid #1f2937;
+        }
+
+        .terminal-input-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .terminal-input {
+            flex: 1;
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .btn-run {
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 0 16px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* Spec Table */
+        .spec-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .spec-label {
+            color: var(--text-dim);
+        }
+
+        .spec-value {
+            font-weight: 500;
+            color: #fff;
+            text-align: right;
+        }
+
+        /* Dock / Taskbar */
+        .dock {
+            margin: 0 16px 18px 16px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(24px);
+            border: 1px solid var(--border-glass);
+            border-radius: 28px;
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+            z-index: 90;
+        }
+
+        .dock-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+
+        .dock-item:active {
+            transform: scale(0.9);
+        }
+
+        .dock-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 22px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .dock-label {
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-dim);
+        }
+
+        .icon-terminal { background: linear-gradient(135deg, #10b981, #047857); }
+        .icon-info { background: linear-gradient(135deg, #00bcd4, #0284c7); }
+        .icon-art { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .icon-files { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+    </style>
+</head>
+<body>
+
+    <!-- Android 17 Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <span id="sb-clock">12:00</span>
+            <span class="badge-17">Lineage 24</span>
+        </div>
+        <div class="status-right">
+            <span>5G</span>
+            <span>WiFi</span>
+            <span>100%</span>
+        </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="workspace">
+        <div class="clock-widget">
+            <div class="clock-time" id="main-clock">12:00</div>
+            <div class="clock-date" id="main-date">Monday, Nov 9</div>
+        </div>
+
+        <div class="banner-card">
+            <h3>⚡ Xperia GhostBoot Live Subsystem</h3>
+            <p>Running official <strong>LineageOS 24.0 (Android 17 CinnamonBun)</strong> rootfs on stock Linux 5.4.210 kernel with KernelSU (uid=0).</p>
+        </div>
+
+        <div class="banner-card">
+            <h3>📱 Target Device: Sony Xperia 5 III</h3>
+            <p>Codename: <strong>pdx214</strong> / Model: <strong>SOG05</strong><br>
+            Bootloader: <strong>LOCKED</strong> (Userspace Memory Hijack)</p>
+        </div>
+    </div>
+
+    <!-- Window: About Phone -->
+    <div class="window" id="win-info">
+        <div class="window-header">
+            <span class="window-title">About Phone (LineageOS 24.0)</span>
+            <button class="window-close" onclick="closeWindow('win-info')">✕</button>
+        </div>
+        <div class="window-body">
+            <div class="spec-row"><span class="spec-label">Device Name</span><span class="spec-value" id="val-model">Xperia 5 III</span></div>
+            <div class="spec-row"><span class="spec-label">Codename</span><span class="spec-value" id="val-device">pdx214</span></div>
+            <div class="spec-row"><span class="spec-label">Android Version</span><span class="spec-value" id="val-release" style="color: #00e5ff; font-weight: bold;">17</span></div>
+            <div class="spec-row"><span class="spec-label">API Level</span><span class="spec-value" id="val-sdk">37 (CinnamonBun)</span></div>
+            <div class="spec-row"><span class="spec-label">Security Patch</span><span class="spec-value" id="val-patch">2026-11-01</span></div>
+            <div class="spec-row"><span class="spec-label">Kernel Version</span><span class="spec-value" id="val-kernel">5.4.210-qgki</span></div>
+            <div class="spec-row"><span class="spec-label">Subsystem</span><span class="spec-value" style="color:#10b981;">GhostBoot v1.0</span></div>
+            <div class="spec-row"><span class="spec-label">Uptime</span><span class="spec-value" id="val-uptime">Active</span></div>
+        </div>
+    </div>
+
+    <!-- Window: Terminal -->
+    <div class="window" id="win-term">
+        <div class="window-header">
+            <span class="window-title">LineageOS 24 Live Terminal</span>
+            <button class="window-close" onclick="closeWindow('win-term')">✕</button>
+        </div>
+        <div class="window-body">
+            <div class="terminal-box" id="term-output">lineage-24.0 (pdx214):/ # Ready for command.
+Type 'uname -a', 'getprop', 'uptime', or any toybox command.</div>
+            <div class="terminal-input-row">
+                <input type="text" id="term-input" class="terminal-input" placeholder="Enter shell command..." value="toybox uname -a">
+                <button class="btn-run" onclick="runCommand()">Run</button>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 10px; overflow-x: auto;">
+                <button class="btn-run" style="font-size: 11px; padding: 4px 8px;" onclick="quickRun('uname -a')">uname -a</button>
+                <button class="btn-run" style="font-size: 11px; padding: 4px 8px;" onclick="quickRun('cat /system/build.prop | grep ro.build')">build.prop</button>
+                <button class="btn-run" style="font-size: 11px; padding: 4px 8px;" onclick="quickRun('toybox id')">id</button>
+                <button class="btn-run" style="font-size: 11px; padding: 4px 8px;" onclick="quickRun('toybox df -h')">df -h</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Window: ART DalvikVM -->
+    <div class="window" id="win-art">
+        <div class="window-header">
+            <span class="window-title">Android 17 ART DalvikVM</span>
+            <button class="window-close" onclick="closeWindow('win-art')">✕</button>
+        </div>
+        <div class="window-body">
+            <p style="color: var(--text-dim); margin-bottom: 12px; font-size: 12px;">Executes 64-bit Java bytecode via <code>/apex/com.android.art/bin/dalvikvm64</code> on the live system.</p>
+            <div class="terminal-box" id="art-output">Click 'Execute ART VM' to run Java framework bytecode.</div>
+            <button class="btn-run" style="width: 100%; height: 38px;" onclick="runArt()">Execute ART VM (abx.jar)</button>
+        </div>
+    </div>
+
+    <!-- Window: Files -->
+    <div class="window" id="win-files">
+        <div class="window-header">
+            <span class="window-title">Rootfs Partition Explorer</span>
+            <button class="window-close" onclick="closeWindow('win-files')">✕</button>
+        </div>
+        <div class="window-body">
+            <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+                <button class="btn-run" style="font-size: 11px; padding: 6px 10px;" onclick="browse('/system/bin')">/system/bin</button>
+                <button class="btn-run" style="font-size: 11px; padding: 6px 10px;" onclick="browse('/product/app')">/product/app</button>
+                <button class="btn-run" style="font-size: 11px; padding: 6px 10px;" onclick="browse('/apex')">/apex</button>
+            </div>
+            <div class="terminal-box" id="files-output" style="max-height: 380px;">Select a partition to view files.</div>
+        </div>
+    </div>
+
+    <!-- Dock -->
+    <div class="dock">
+        <div class="dock-item" onclick="openWindow('win-term')">
+            <div class="dock-icon icon-terminal">⌨️</div>
+            <span class="dock-label">Terminal</span>
+        </div>
+        <div class="dock-item" onclick="openWindow('win-info')">
+            <div class="dock-icon icon-info">⚙️</div>
+            <span class="dock-label">About OS</span>
+        </div>
+        <div class="dock-item" onclick="openWindow('win-art')">
+            <div class="dock-icon icon-art">☕</div>
+            <span class="dock-label">ART VM</span>
+        </div>
+        <div class="dock-item" onclick="openWindow('win-files')">
+            <div class="dock-icon icon-files">📁</div>
+            <span class="dock-label">Files</span>
+        </div>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            const date = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+            document.getElementById('sb-clock').textContent = time;
+            document.getElementById('main-clock').textContent = time;
+            document.getElementById('main-date').textContent = date;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function openWindow(id) {
+            document.querySelectorAll('.window').forEach(w => w.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if (id === 'win-info') loadInfo();
+        }
+
+        function closeWindow(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        async function loadInfo() {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?cmd=info');
+                const data = await res.json();
+                document.getElementById('val-release').textContent = data.release || '17';
+                document.getElementById('val-sdk').textContent = (data.sdk || '37') + ' (CinnamonBun)';
+                document.getElementById('val-patch').textContent = data.patch || '2026-11-01';
+                document.getElementById('val-device').textContent = data.device || 'pdx214';
+                document.getElementById('val-model').textContent = data.model || 'Xperia 5 III';
+                document.getElementById('val-kernel').textContent = data.kernel || '5.4.210-qgki';
+                document.getElementById('val-uptime').textContent = data.uptime || 'Active';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function runCommand() {
+            const cmd = document.getElementById('term-input').value.trim();
+            if (!cmd) return;
+            const term = document.getElementById('term-output');
+            term.textContent += '\n\nlineage-24.0 (pdx214):/ # ' + cmd + '\nExecuting...';
+            term.scrollTop = term.scrollHeight;
+
+            try {
+                const res = await fetch('/cgi-bin/api.sh?cmd=exec&c=' + encodeURIComponent(cmd));
+                const data = await res.json();
+                term.textContent += '\n' + (data.output || '(No output)');
+            } catch (e) {
+                term.textContent += '\nError executing command: ' + e;
+            }
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function quickRun(cmd) {
+            document.getElementById('term-input').value = cmd;
+            runCommand();
+        }
+
+        async function runArt() {
+            const out = document.getElementById('art-output');
+            out.textContent = "Launching 64-bit Dalvik VM inside Android 17...\nCommand: dalvikvm64 -cp /system/framework/abx.jar com.android.commands.abx.Abx\n\nExecuting...";
+            try {
+                const res = await fetch('/cgi-bin/api.sh?cmd=art');
+                const data = await res.json();
+                out.textContent = data.output || "Completed with no output.";
+            } catch (e) {
+                out.textContent = "Error: " + e;
+            }
+        }
+
+        async function browse(path) {
+            const out = document.getElementById('files-output');
+            out.textContent = "Listing " + path + "...";
+            try {
+                const res = await fetch('/cgi-bin/api.sh?cmd=files&path=' + encodeURIComponent(path));
+                const data = await res.json();
+                out.textContent = path + ":\n\n" + data.files.split(', ').join('\n');
+            } catch (e) {
+                out.textContent = "Error: " + e;
+            }
+        }
+    </script>
+</body>
+</html>
+
