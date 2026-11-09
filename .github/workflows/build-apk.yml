@@ -84,10 +84,14 @@ jobs:
             file "$f" | grep -q "aarch64" || { echo "not arm64!"; exit 1; }
           done
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - name: Install Gradle 8.9
+        run: |
+          set -e
+          mkdir -p "$HOME/gradle-dist"
+          curl -sSL --retry 5 --retry-delay 3 -o /tmp/gradle.zip \
+            https://github.com/gradle/gradle-distributions/releases/download/v8.9.0/gradle-8.9-bin.zip
+          unzip -q /tmp/gradle.zip -d "$HOME/gradle-dist"
+          echo "$HOME/gradle-dist/gradle-8.9/bin" >> "$GITHUB_PATH"
 
       - name: Build APK
         working-directory: apk
