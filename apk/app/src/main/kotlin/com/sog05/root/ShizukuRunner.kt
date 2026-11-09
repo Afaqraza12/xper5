@@ -46,8 +46,17 @@ class ShizukuRunner(private val context: Context) {
         val finished = AtomicBoolean(false)
         lateinit var conn: ServiceConnection
 
+        val connectTimeoutRunnable = Runnable {
+            if (finished.compareAndSet(false, true)) {
+                onLog("<e> connect timeout: Shizuku service failed to respond")
+                onDone(1)
+            }
+        }
+        handler.postDelayed(connectTimeoutRunnable, 20_000)
+
         conn = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+                handler.removeCallbacks(connectTimeoutRunnable)
                 onLog("<b> service connected")
                 val svc = IRootService.Stub.asInterface(binder)
                 val cb = object : IRootCallback.Stub() {
@@ -62,7 +71,9 @@ class ShizukuRunner(private val context: Context) {
                 }
                 runCatching { svc.runPipeline(skipExploit, cb) }.onFailure {
                     onLog("<e> ${it.message}")
-                    onDone(1)
+                    if (finished.compareAndSet(false, true)) {
+                        onDone(1)
+                    }
                 }
             }
 
@@ -76,17 +87,11 @@ class ShizukuRunner(private val context: Context) {
 
         onLog("<b> binding UserService")
         runCatching { Shizuku.bindUserService(args, conn) }.onFailure {
+            handler.removeCallbacks(connectTimeoutRunnable)
             onLog("<e> bind failed: ${it.message}")
             onDone(1)
             return
         }
-
-        handler.postDelayed({
-            if (finished.compareAndSet(false, true)) {
-                onLog("<e> connect timeout")
-                onDone(1)
-            }
-        }, 10_000)
     }
 
     companion object {

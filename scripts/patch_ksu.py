@@ -135,6 +135,24 @@ def patch_ksu(ksu_dir="ksu"):
         else:
             print("[-] Warning: ksu_manager_appid signature not matched in throne_tracker.c")
 
+        # Never invalidate ReSukiSU (uid 10419) when packages.list is touched
+        old_inval = "if (ksu_is_manager_appid_valid()) {"
+        new_inval = "if (ksu_is_manager_appid_valid() && ksu_get_manager_appid() != 10419) {"
+        if old_inval in tt_code:
+            tt_code = tt_code.replace(old_inval, new_inval, 1)
+            print("[+] Protected UID 10419 from invalidation in throne_tracker.c")
+
+        # Recognize ReSukiSU in packages.list scanning
+        old_scan = "list_for_each_entry (np, &uid_list, list) {"
+        new_scan = """list_for_each_entry (np, &uid_list, list) {
+		if (np->uid == 10419 || strcmp(np->package, "com.resukisu.resukisu") == 0) {
+			manager_package_uid = np->uid;
+			break;
+		}"""
+        if old_scan in tt_code:
+            tt_code = tt_code.replace(old_scan, new_scan, 1)
+            print("[+] Added ReSukiSU detection to packages.list scanner in throne_tracker.c")
+
         with open(tracker_path, "w") as f:
             f.write(tt_code)
 
