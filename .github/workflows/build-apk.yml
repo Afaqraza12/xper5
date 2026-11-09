@@ -84,14 +84,16 @@ jobs:
             file "$f" | grep -q "aarch64" || { echo "not arm64!"; exit 1; }
           done
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
       - name: Build APK
         working-directory: apk
         run: |
           set -e
-          # Use a pinned Gradle directly; no wrapper is checked in.
-          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
-          unzip -q /tmp/gradle.zip -d "$HOME/gradle-dist"
-          "$HOME/gradle-dist/gradle-8.9/bin/gradle" :app:assembleRelease --no-daemon --stacktrace
+          gradle :app:assembleRelease --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
