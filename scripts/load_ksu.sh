@@ -23,11 +23,18 @@ LIVE_TEXT_BASE=$(echo "$LEAK_OUTPUT" | grep -o 'text_base=[0-9a-fA-F]*' | cut -d
 
 if [ -n "$LIVE_TEXT_BASE" ]; then
     echo "[+] Live kernel text_base detected: 0x${LIVE_TEXT_BASE}"
-    python3 "${WORKSPACE_DIR}/scripts/resolve_symbols.py" \
+    KALLSYMS_PATH="${WORKSPACE_DIR}/kallsyms.txt"
+    if [ ! -f "$KALLSYMS_PATH" ] && [ -f "${WORKSPACE_DIR}/kallsyms.gz" ]; then
+        KALLSYMS_PATH="${WORKSPACE_DIR}/kallsyms.gz"
+    fi
+    if ! python3 "${WORKSPACE_DIR}/scripts/resolve_symbols.py" \
         "${WORKSPACE_DIR}/kernelsu.ko" \
-        "${WORKSPACE_DIR}/kallsyms.txt" \
+        "$KALLSYMS_PATH" \
         "${WORKSPACE_DIR}/Module.symvers" \
-        "0x${LIVE_TEXT_BASE}"
+        "0x${LIVE_TEXT_BASE}"; then
+        echo "[-] Error: Failed to resolve kernel symbols! Aborting to avoid kernel crash."
+        exit 1
+    fi
 else
     echo "[-] Error: Failed to leak live KASLR text_base via DIAG_LEAK_ONLY!"
     exit 1

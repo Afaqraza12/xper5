@@ -166,4 +166,5 @@ if __name__ == "__main__":
         sys.exit(1)
     symvers = sys.argv[3] if len(sys.argv) > 3 else "Module.symvers"
     live_base = sys.argv[4] if len(sys.argv) > 4 else None
-    resolve_symbols(sys.argv[1], sys.argv[2], symvers, live_base)
+    ok = resolve_symbols(sys.argv[1], sys.argv[2], symvers, live_base)
+    sys.exit(0 if ok else 1)
