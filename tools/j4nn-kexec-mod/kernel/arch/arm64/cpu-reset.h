@@ -25,7 +25,12 @@ void __cpu_soft_restart(unsigned el2_switch,
 	unsigned long entry, unsigned long arg0, unsigned long arg1,
 	unsigned long arg2);
 
-static void __noreturn km_cpu_soft_restart(unsigned long entry,
+void __noreturn km_cpu_soft_restart(unsigned long entry,
+					unsigned long arg0,
+					unsigned long arg1,
+					unsigned long arg2);
+
+void __noreturn km_cpu_soft_restart(unsigned long entry,
 					unsigned long arg0,
 					unsigned long arg1,
 					unsigned long arg2)
