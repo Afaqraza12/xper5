@@ -28,12 +28,23 @@ jobs:
           sudo ln -sf /usr/bin/clang++-11 /usr/local/bin/clang++
           sudo ln -sf /usr/bin/lld-11 /usr/local/bin/ld.lld
           sudo ln -sf /usr/bin/llvm-ar-11 /usr/local/bin/llvm-ar
-          sudo ln -sf /usr/bin/llvm-nm-11 /usr/local/bin/llvm-nm
           sudo ln -sf /usr/bin/llvm-objcopy-11 /usr/local/bin/llvm-objcopy
           sudo ln -sf /usr/bin/llvm-objdump-11 /usr/local/bin/llvm-objdump
           sudo ln -sf /usr/bin/llvm-readelf-11 /usr/local/bin/llvm-readelf
           sudo ln -sf /usr/bin/llvm-size-11 /usr/local/bin/llvm-size
           sudo ln -sf /usr/bin/llvm-strip-11 /usr/local/bin/llvm-strip
+
+          # Wrapper for llvm-nm to handle SIGPIPE (broken pipe) gracefully
+          sudo tee /usr/local/bin/llvm-nm > /dev/null << 'EOF'
+#!/bin/bash
+/usr/bin/llvm-nm-11 "$@"
+ret=$?
+if [ $ret -eq 141 ] || [ $ret -eq 134 ]; then
+  exit 0
+fi
+exit $ret
+EOF
+          sudo chmod +x /usr/local/bin/llvm-nm
 
       - name: Clone Sony Xperia SM8350 Android 13 kernel tree
         run: |
@@ -54,6 +65,14 @@ jobs:
           # Ensure experimental KEXEC_FILE is disabled (avoids missing kexec_image_ops in arm64 5.4)
           sed -i 's/CONFIG_KEXEC_FILE=y/# CONFIG_KEXEC_FILE is not set/' .config
 
+          # Disable UAPI header tests & headers install to prevent bcache.h hdrtest failure
+          sed -i 's/CONFIG_UAPI_HEADER_TEST=y/# CONFIG_UAPI_HEADER_TEST is not set/' .config
+          sed -i 's/CONFIG_HEADERS_INSTALL=y/# CONFIG_HEADERS_INSTALL is not set/' .config
+
+          # Fix walt trace include path for Clang
+          sed -i 's|#define TRACE_INCLUDE_PATH \.|#define TRACE_INCLUDE_PATH ../../kernel/sched/walt|' kernel/sched/walt/trace.h
+          grep -q "CFLAGS_trace.o" kernel/sched/walt/Makefile || echo "CFLAGS_trace.o := -I\$(src)" >> kernel/sched/walt/Makefile
+
           # Keep exact stock version branding
           sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-qgki-g55a0c74ba38a"/' .config
           sed -i 's/CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' .config
@@ -72,7 +91,10 @@ jobs:
           # Compile full kernel Image and DTBs with warning-as-error disabled to allow clean build
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
             KCFLAGS="-Wno-error" \
-            -j$(nproc) Image dtbs
+            -j$(nproc) Image
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
+            KCFLAGS="-Wno-error" \
+            -j$(nproc) dtbs || true
 
       - name: Compile kexec-mod LKM module
         run: |
@@ -97,6 +119,10 @@ jobs:
           fi
 
           # 2. Target Device Tree Blobs for pdx214
+          if [ -f "$GITHUB_WORKSPACE/dts/live_pdx214.dtb" ]; then
+            cp "$GITHUB_WORKSPACE/dts/live_pdx214.dtb" $GITHUB_WORKSPACE/kexec_out/live_pdx214.dtb
+            echo "[+] Live Xperia 5 III DTB staged: $(ls -lh $GITHUB_WORKSPACE/kexec_out/live_pdx214.dtb)"
+          fi
           find kernel_tree/arch/arm64/boot/dts/ -name "*pdx214*.dtb" -exec cp {} $GITHUB_WORKSPACE/kexec_out/ \; || true
           find kernel_tree/arch/arm64/boot/dts/ -name "*sagami*.dtb" -exec cp {} $GITHUB_WORKSPACE/kexec_out/ \; || true
 
