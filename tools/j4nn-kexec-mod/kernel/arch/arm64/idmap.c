@@ -159,8 +159,8 @@ phys_addr_t kexec_pa_symbol(void *ptr)
 	unsigned long va = (unsigned long) ptr;
 	u64 par;
 
-	asm volatile("at s1e1r, %0\n\tisb\n\tmrs %1, par_el1"
-		     : : "r" (va), "=r" (par) : "memory");
+	asm volatile("at s1e1r, %1\n\tisb\n\tmrs %0, par_el1"
+		     : "=r" (par) : "r" (va) : "memory");
 
 	if (!(par & 1)) {
 		return (phys_addr_t)((par & 0x0000fffffffff000ULL) | (va & ~PAGE_MASK));

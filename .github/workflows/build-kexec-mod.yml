@@ -28,6 +28,7 @@ jobs:
           sudo ln -sf /usr/bin/lld-11 /usr/local/bin/ld.lld
           sudo ln -sf /usr/bin/llvm-ar-11 /usr/local/bin/llvm-ar
           sudo ln -sf /usr/bin/llvm-strip-11 /usr/local/bin/llvm-strip
+          sudo ln -sf /usr/bin/llvm-objdump-11 /usr/local/bin/llvm-objdump
 
           # llvm-nm wrapper to handle SIGPIPE
           printf '#!/bin/bash\n/usr/bin/llvm-nm-11 "$@"\nret=$?\nif [ $ret -eq 141 ] || [ $ret -eq 134 ]; then\n  exit 0\nfi\nexit $ret\n' | sudo tee /usr/local/bin/llvm-nm > /dev/null
