@@ -31,6 +31,25 @@
  */
 ENTRY(arm64_relocate_new_kernel)
 
+	/* 
+	 * Hardware Mailbox at physical 0xffc00000 (ramoops buffer, persists across resets)
+	 * Offset 0:  Magic "KEXEC_LG" (0x4b455845435f4c47)
+	 * Offset 8:  Step marker (1=Entry, 2=MMU off, 3=Copying, 4=Done, 5=Jumping)
+	 * Offset 16: Target entry address (x17)
+	 * Offset 24: DTB address (x18)
+	 * Offset 32: Page copy count
+	 */
+	movz	x25, #0x0000
+	movk	x25, #0xffc0, lsl #16		/* x25 = 0xffc00000 (mailbox) */
+
+	movz	x26, #0x4c47
+	movk	x26, #0x435f, lsl #16
+	movk	x26, #0x5845, lsl #32
+	movk	x26, #0x4b45, lsl #48
+	str	x26, [x25]			/* Magic = KEXEC_LG */
+	mov	x26, #1
+	str	x26, [x25, #8]			/* Step = 1 (Entry) */
+
 	/* Disable MMU and caches first */
 	mrs	x9, CurrentEL
 	cmp	x9, #CurrentEL_EL2
@@ -55,6 +74,9 @@ ENTRY(arm64_relocate_new_kernel)
 	isb
 
 2:
+	mov	x26, #2
+	str	x26, [x25, #8]			/* Step = 2 (MMU disabled) */
+
 	/* Setup the list loop variables. */
 	mov	x18, x2				/* x18 = dtb address */
 	mov	x17, x1				/* x17 = kimage_start */
@@ -63,8 +85,16 @@ ENTRY(arm64_relocate_new_kernel)
 	mov	x14, xzr			/* x14 = entry ptr */
 	mov	x13, xzr			/* x13 = copy dest */
 
+	str	x17, [x25, #16]			/* Save target entry */
+	str	x18, [x25, #24]			/* Save DTB address */
+	mov	x27, xzr			/* Pages copied counter = 0 */
+	str	x27, [x25, #32]
+
 	/* Check if the new image needs relocation. */
 	tbnz	x16, IND_DONE_BIT, .Ldone
+
+	mov	x26, #3
+	str	x26, [x25, #8]			/* Step = 3 (Relocating pages) */
 
 .Lloop:
 	and	x12, x16, PAGE_MASK		/* x12 = addr */
@@ -73,20 +103,17 @@ ENTRY(arm64_relocate_new_kernel)
 .Ltest_source:
 	tbz	x16, IND_SOURCE_BIT, .Ltest_indirection
 
-	/* Invalidate dest page to PoC. */
-	mov     x0, x13
-	add     x20, x0, #PAGE_SIZE
-	sub     x1, x15, #1
-	bic     x0, x0, x1
-2:	dc      ivac, x0
-	add     x0, x0, x15
-	cmp     x0, x20
-	b.lo    2b
-	dsb     sy
-
-	mov x20, x13
-	mov x21, x12
+	/*
+	 * Direct copy page in physical memory.
+	 * NOTE: dc ivac is deliberately omitted because caches and MMU are already
+	 * disabled (SCTLR_EL1.C = 0, M = 0), and dc ivac traps to Gunyah EL2 hypervisor.
+	 */
+	mov	x20, x13
+	mov	x21, x12
 	copy_page x20, x21, x0, x1, x2, x3, x4, x5, x6, x7
+
+	add	x27, x27, #1
+	str	x27, [x25, #32]			/* Update page copy counter */
 
 	/* dest += PAGE_SIZE */
 	add	x13, x13, PAGE_SIZE
@@ -113,11 +140,17 @@ ENTRY(arm64_relocate_new_kernel)
 	tbz	x16, IND_DONE_BIT, .Lloop
 
 .Ldone:
+	mov	x26, #4
+	str	x26, [x25, #8]			/* Step = 4 (Relocation finished) */
+
 	/* wait for writes from copy_page to finish */
-	dsb	nsh
+	dsb	sy
 	ic	iallu
-	dsb	nsh
+	dsb	sy
 	isb
+
+	mov	x26, #5
+	str	x26, [x25, #8]			/* Step = 5 (Jumping to new kernel!) */
 
 	/* Start new image. */
 	mov	x0, x18
