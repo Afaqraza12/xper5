@@ -22,6 +22,16 @@
 
 #include "kexec_compat.h"
 
+__attribute__((no_sanitize("cfi")))
+void __cfi_slowpath_diag(unsigned long long id, void *ptr, void *diag)
+{
+}
+
+__attribute__((no_sanitize("cfi")))
+void __ubsan_handle_cfi_check_fail(void *data, void *ptr, void *vtable)
+{
+}
+
 /* These kernel symbols need to be dynamically resolved at runtime
  * using kallsym due to them not being exposed to kernel modules */
 static void (*machine_shutdown_ptr)(void);

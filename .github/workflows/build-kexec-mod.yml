@@ -66,12 +66,15 @@ jobs:
           # Prepare module headers without building full vmlinux (takes ~15 seconds!)
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 prepare modules_prepare
 
+          # Overlay exact live device kernel headers from kheaders.tar.xz (fixes struct offsets)
+          tar -xf ../kheaders.tar.xz -C .
+
       - name: Compile kexec-mod LKM module
         run: |
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
             KBUILD_MODPOST_WARN=1 \
-            KCFLAGS="-fno-pic -mcmodel=large -Wno-error" \
+            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi -Wno-error" \
             M=$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel modules -j$(nproc)
 
           echo "[+] Built modules:"

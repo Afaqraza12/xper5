@@ -66,6 +66,16 @@ u32 __boot_cpu_mode[2];
 
 #include "../../kexec_compat.h"
 
+__attribute__((no_sanitize("cfi")))
+void __cfi_slowpath_diag(unsigned long long id, void *ptr, void *diag)
+{
+}
+
+__attribute__((no_sanitize("cfi")))
+void __ubsan_handle_cfi_check_fail(void *data, void *ptr, void *vtable)
+{
+}
+
 /**
  * This function initializes the __boot_cpu_mode variable with that from the kernel.
  * Since it is not exported, this requires some hacks.
