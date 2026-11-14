@@ -219,10 +219,10 @@ void machine_kexec(struct kimage *kimage)
 
        /*
 	* Identity map the 2MB block containing reboot_code_buffer_phys and
-	* the persistent hardware mailbox at physical 0xffd00000 (outside pstore).
+	* the persistent hardware mailbox at physical 0xffce0000 (safe upper pmsg).
 	*/
        kexec_idmap_add_page(reboot_code_buffer_phys);
-       kexec_idmap_add_page(0xffd00000);
+       kexec_idmap_add_page(0xffce0000);
 
        /* Flush the entire reboot_code_buffer page in preparation for its execution. */
        __flush_dcache_area(reboot_code_buffer, PAGE_SIZE);

@@ -32,10 +32,10 @@
 ENTRY(arm64_relocate_new_kernel)
 
 	/* 
-	 * Hardware Mailbox at physical 0xffd00000 (safe RAM, outside ramoops/pstore).
-	 * Memory at 0xffd00000 is identity-mapped in TTBR0 before jumping here.
+	 * Hardware Mailbox at physical 0xffce0000 (safe RAM, outside ramoops/pstore).
+	 * Memory at 0xffce0000 is identity-mapped in TTBR0 before jumping here.
 	 *
-	 * Layout at 0xffd00000:
+	 * Layout at 0xffce0000:
 	 *   Offset 0:  Magic "KEXEC_LG" (0x4b455845435f4c47)
 	 *   Offset 8:  Step marker (10..19)
 	 *   Offset 16: Target entry address (x17)
@@ -46,7 +46,7 @@ ENTRY(arm64_relocate_new_kernel)
 	 *   Offset 56: CurrentEL value
 	 */
 	movz	x25, #0x0000
-	movk	x25, #0xffd0, lsl #16		/* x25 = 0xffd00000 (mailbox) */
+	movk	x25, #0xffce, lsl #16		/* x25 = 0xffce0000 (mailbox) */
 
 	movz	x26, #0x4c47
 	movk	x26, #0x435f, lsl #16

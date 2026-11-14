@@ -38,12 +38,12 @@ MODULE_PARM_DESC(shim_hyp,
 
 static ssize_t kexec_debug_log_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	void __iomem *mb = ioremap_cache(0xffd00000, 0x1000);
+	void __iomem *mb = ioremap_cache(0xffce0000, 0x1000);
 	u64 magic, step, target, dtb, pages, sctlr_orig, sctlr_new, cur_el;
 	ssize_t ret;
 
 	if (!mb)
-		return sprintf(buf, "[-] Failed to ioremap_cache 0xffd00000\n");
+		return sprintf(buf, "[-] Failed to ioremap_cache 0xffce0000\n");
 
 	magic      = readq(mb);
 	step       = readq(mb + 8);
@@ -55,7 +55,7 @@ static ssize_t kexec_debug_log_show(struct kobject *kobj, struct kobj_attribute 
 	cur_el     = readq(mb + 56);
 
 	ret = sprintf(buf,
-		"=== KEXEC HARDWARE MAILBOX (0xffd00000) ===\n"
+		"=== KEXEC HARDWARE MAILBOX (0xffce0000) ===\n"
 		"Magic:        0x%llx (%s)\n"
 		"Step:         %llu (%s)\n"
 		"CurrentEL:    0x%llx (EL%llu)\n"
@@ -75,7 +75,8 @@ static ssize_t kexec_debug_log_show(struct kobject *kobj, struct kobj_attribute 
 		      (step == 16) ? "Step 16: Immediately AFTER isb (barrier finished)" :
 		      (step == 17) ? "Step 17: Relocation copy loop entered" :
 		      (step == 18) ? "Step 18: Relocation copy loop finished" :
-		      (step == 19) ? "Step 19: Immediately BEFORE br x17 (jump to new kernel/purgatory)" : "Unknown",
+		      (step == 19) ? "Step 19: Immediately BEFORE br x17 (jump to new kernel/purgatory)" :
+		      (step == 777) ? "Step 777: CALIBRATION TEST PATTERN (survived reboot!)" : "Unknown",
 		cur_el, (cur_el >> 2) & 3,
 		sctlr_orig, sctlr_new,
 		target, dtb, pages, pages * 4096);
@@ -84,7 +85,19 @@ static ssize_t kexec_debug_log_show(struct kobject *kobj, struct kobj_attribute 
 	return ret;
 }
 
-static struct kobj_attribute kexec_debug_log_attr = __ATTR_RO(kexec_debug_log);
+static ssize_t kexec_debug_log_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	void __iomem *mb = ioremap_cache(0xffce0000, 0x1000);
+	if (mb) {
+		writeq(0x4b455845435f4c47ULL, mb);
+		writeq(777, mb + 8);
+		iounmap(mb);
+		pr_info("kexec_debug: wrote test pattern to 0xffce0000\n");
+	}
+	return count;
+}
+
+static struct kobj_attribute kexec_debug_log_attr = __ATTR_RW(kexec_debug_log);
 
 static int __init
 kexecmod_arm64_init(void)
