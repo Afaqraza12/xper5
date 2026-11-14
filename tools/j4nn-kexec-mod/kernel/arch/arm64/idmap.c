@@ -14,6 +14,17 @@
 
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
+#include "../../kexec_compat.h"
+
+static void my_cpu_set_reserved_ttbr0(void)
+{
+	unsigned long rpd = kprobe_lookup_name("reserved_pg_dir");
+	unsigned long pa = rpd ? virt_to_phys((void *)rpd) : 0;
+	unsigned long ttbr = phys_to_ttbr(pa);
+
+	write_sysreg(ttbr, ttbr0_el1);
+	isb();
+}
 
 #include "idmap.h"
 
@@ -88,7 +99,7 @@ void kexec_idmap_setup(void)
 
 void kexec_idmap_install(void)
 {
-	cpu_set_reserved_ttbr0();
+	my_cpu_set_reserved_ttbr0();
 	flush_tlb_all();
 	cpu_set_idmap_tcr_t0sz();
 

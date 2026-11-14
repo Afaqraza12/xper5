@@ -13,6 +13,21 @@
 #ifndef LINUX_KEXEC_COMPAT_H
 #define LINUX_KEXEC_COMPAT_H
 
+#include <linux/kprobes.h>
+
+static inline unsigned long kprobe_lookup_name(const char *name)
+{
+	unsigned long addr = 0;
+	struct kprobe kp = {
+		.symbol_name = name,
+	};
+	if (register_kprobe(&kp) == 0) {
+		addr = (unsigned long)kp.addr;
+		unregister_kprobe(&kp);
+	}
+	return addr;
+}
+
 /**
  * Load the kexec compatibility layer.
  */

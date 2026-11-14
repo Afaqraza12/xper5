@@ -64,6 +64,8 @@ bool cpus_are_stuck_in_kernel(void)
 u64 idmap_t0sz = TCR_T0SZ(VA_BITS);
 u32 __boot_cpu_mode[2];
 
+#include "../../kexec_compat.h"
+
 /**
  * This function initializes the __boot_cpu_mode variable with that from the kernel.
  * Since it is not exported, this requires some hacks.
@@ -76,7 +78,7 @@ static int __init_cpu_boot_mode(void)
 	 * Our approach is to decode the address to __boot_mode_cpu from the instructions
 	 * of set_cpu_boot_mode_flag which is exported and references __boot_mode_cpu.
 	 */
-	u32 *set_cpu_boot_mode_flag_ptr = (void *)kallsyms_lookup_name("set_cpu_boot_mode_flag");
+	u32 *set_cpu_boot_mode_flag_ptr = (void *)kprobe_lookup_name("set_cpu_boot_mode_flag");
 	void *page = (void *) (((u64)set_cpu_boot_mode_flag_ptr) & ~0xFFF);
 	u16 lo = (set_cpu_boot_mode_flag_ptr[0] >> 29) & 0x3;
 	u16 hi = (set_cpu_boot_mode_flag_ptr[0] >> 4) & 0xFFFF;
@@ -144,7 +146,7 @@ static void __init_mm(void)
 
 static void *ksym(const char *name)
 {
-	return (void *) kallsyms_lookup_name(name);
+	return (void *) kprobe_lookup_name(name);
 }
 
 int machine_kexec_compat_load(int detect_el2, int shim_hyp)

@@ -51,7 +51,7 @@ void cpu_hotplug_enable(void)
 
 static void *ksym(const char *name)
 {
-	return (void *)kallsyms_lookup_name(name);
+	return (void *)kprobe_lookup_name(name);
 }
 
 struct wdog_data {

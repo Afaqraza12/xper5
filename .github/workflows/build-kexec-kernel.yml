@@ -129,8 +129,10 @@ jobs:
         run: |
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
-            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi -Wno-error" \
+            KBUILD_MODPOST_WARN=1 \
+            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize=all -fno-sanitize-trap=all -Wno-error" \
             M=$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel modules -j$(nproc) || true
+          find $GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel -name "*.ko" -ls
 
       - name: Compile user-space helper redir.so
         run: |
