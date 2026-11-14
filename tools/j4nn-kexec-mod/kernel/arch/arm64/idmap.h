@@ -14,6 +14,8 @@
 
 #include <linux/types.h>
 
+phys_addr_t kexec_pa_symbol(void *ptr);
+
 int kexec_idmap_setup(void);
 
 int kexec_idmap_add_page(phys_addr_t pa);
