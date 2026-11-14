@@ -26,6 +26,18 @@ static void (*cpu_do_switch_mm_ptr)(unsigned long, struct mm_struct *);
 static void (*__flush_dcache_area_ptr)(void *, size_t);
 static void (*__hyp_set_vectors_ptr)(phys_addr_t);
 static phys_addr_t (*__hyp_get_vectors_ptr)(void);
+static void (*cpu_soft_restart_ptr)(unsigned long, unsigned long, unsigned long, unsigned long);
+
+void my_cpu_soft_restart(unsigned long entry, unsigned long arg0, unsigned long arg1, unsigned long arg2)
+{
+	if (cpu_soft_restart_ptr) {
+		pr_info("Invoking native stock kernel cpu_soft_restart at %p\n", cpu_soft_restart_ptr);
+		cpu_soft_restart_ptr(entry, arg0, arg1, arg2);
+	} else {
+		extern void km_cpu_soft_restart(unsigned long, unsigned long, unsigned long, unsigned long);
+		km_cpu_soft_restart(entry, arg0, arg1, arg2);
+	}
+}
 
 void cpu_do_switch_mm(unsigned long pgd_phys, struct mm_struct *mm)
 {
@@ -142,6 +154,10 @@ static void *ksym(const char *name)
 
 int machine_kexec_compat_load(int detect_el2, int shim_hyp)
 {
+	cpu_soft_restart_ptr = ksym("cpu_soft_restart");
+	if (cpu_soft_restart_ptr)
+		pr_info("Resolved native stock cpu_soft_restart at %p\n", cpu_soft_restart_ptr);
+
 	if (!(cpu_do_switch_mm_ptr = ksym("cpu_do_switch_mm"))
 	    || !(__flush_dcache_area_ptr = ksym("__flush_dcache_area")))
 		return -ENOENT;

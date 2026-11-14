@@ -237,15 +237,11 @@ void machine_kexec(struct kimage *kimage)
        local_daif_mask();
 
        /*
-	* cpu_soft_restart will shutdown the MMU, disable data caches, then
-	* transfer control to the reboot_code_buffer which contains a copy of
-	* the arm64_relocate_new_kernel routine.  arm64_relocate_new_kernel
-	* uses physical addressing to relocate the new image to its final
-	* position and transfers control to the image entry point when the
-	* relocation is complete.
+	* Invoke cpu_soft_restart (native stock kernel routine if resolved, or LKM fallback)
+	* to shutdown the MMU, disable data caches, then transfer control to the reboot_code_buffer.
 	*/
 
-       km_cpu_soft_restart(reboot_code_buffer_phys, kimage->head, kimage->start, 0);
+       my_cpu_soft_restart(reboot_code_buffer_phys, kimage->head, kimage->start, 0);
 
        BUG(); /* Should never get here. */
 }

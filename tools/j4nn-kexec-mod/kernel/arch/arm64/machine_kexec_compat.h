@@ -34,4 +34,6 @@ void machine_kexec_compat_prereset(void);
 
 bool cpus_are_stuck_in_kernel(void);
 
+void my_cpu_soft_restart(unsigned long entry, unsigned long arg0, unsigned long arg1, unsigned long arg2);
+
 #endif /* LINUX_MACHINE_KEXEC_COMPAT_H */
