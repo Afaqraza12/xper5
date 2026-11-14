@@ -218,12 +218,6 @@ void machine_kexec(struct kimage *kimage)
 	      arm64_relocate_new_kernel_size);
 
        /*
-	* Copy position-independent __cpu_soft_restart to offset 512.
-	*/
-       memcpy(reboot_code_buffer + 512, __cpu_soft_restart,
-	      arm64_cpu_soft_restart_size ? arm64_cpu_soft_restart_size : 128);
-
-       /*
 	* Identity map the 2MB block containing reboot_code_buffer_phys.
 	*/
        kexec_idmap_add_page(reboot_code_buffer_phys);
@@ -250,29 +244,25 @@ void machine_kexec(struct kimage *kimage)
        kexec_idmap_install();
 
        /*
-	* Jump directly to __cpu_soft_restart placed at reboot_code_buffer_phys + 512.
-	* It disables the MMU, executes an ISB, and branches with MMU OFF to
-	* reboot_code_buffer_phys (arm64_relocate_new_kernel).
+	* Jump directly to arm64_relocate_new_kernel placed at reboot_code_buffer_phys.
+	* It disables the MMU (sctlr_el1), executes an ISB, relocates segments,
+	* and boots the new kernel image.
 	*
-	* Registers for __cpu_soft_restart:
-	*   x0 = el2_switch (0)
-	*   x1 = entry (reboot_code_buffer_phys)
-	*   x2 = arg0 (kimage->head)
-	*   x3 = arg1 (kimage->start)
-	*   x4 = arg2 (0)
+	* Registers for arm64_relocate_new_kernel:
+	*   x0 = kimage->head
+	*   x1 = kimage->start
+	*   x2 = dtb address (0)
 	*/
        {
-	       register unsigned long x0 asm("x0") = 0;
-	       register unsigned long x1 asm("x1") = reboot_code_buffer_phys;
-	       register unsigned long x2 asm("x2") = kimage->head;
-	       register unsigned long x3 asm("x3") = kimage->start;
-	       register unsigned long x4 asm("x4") = 0;
-	       register unsigned long target asm("x8") = reboot_code_buffer_phys + 512;
+	       register unsigned long x0 asm("x0") = kimage->head;
+	       register unsigned long x1 asm("x1") = kimage->start;
+	       register unsigned long x2 asm("x2") = 0;
+	       register unsigned long target asm("x8") = reboot_code_buffer_phys;
 
 	       asm volatile(
 		       "br %0\n"
 		       :
-		       : "r"(target), "r"(x0), "r"(x1), "r"(x2), "r"(x3), "r"(x4)
+		       : "r"(target), "r"(x0), "r"(x1), "r"(x2)
 		       : "memory"
 	       );
        }

@@ -31,6 +31,30 @@
  */
 ENTRY(arm64_relocate_new_kernel)
 
+	/* Disable MMU and caches first */
+	mrs	x9, CurrentEL
+	cmp	x9, #CurrentEL_EL2
+	b.eq	1f
+
+	/* EL1: Disable MMU and caches in sctlr_el1 */
+	mrs	x9, sctlr_el1
+	movz	x10, #0x100f
+	movk	x10, #0x0020, lsl #16
+	bic	x9, x9, x10
+	msr	sctlr_el1, x9
+	isb
+	b	2f
+
+1:
+	/* EL2: Disable MMU and caches in sctlr_el2 */
+	mrs	x9, sctlr_el2
+	movz	x10, #0x100f
+	movk	x10, #0x0020, lsl #16
+	bic	x9, x9, x10
+	msr	sctlr_el2, x9
+	isb
+
+2:
 	/* Setup the list loop variables. */
 	mov	x18, x2				/* x18 = dtb address */
 	mov	x17, x1				/* x17 = kimage_start */
@@ -38,18 +62,6 @@ ENTRY(arm64_relocate_new_kernel)
 	raw_dcache_line_size x15, x0		/* x15 = dcache line size */
 	mov	x14, xzr			/* x14 = entry ptr */
 	mov	x13, xzr			/* x13 = copy dest */
-
-	/* Clear the sctlr_el2 flags. */
-	mrs	x0, CurrentEL
-	cmp	x0, #CurrentEL_EL2
-	b.ne	1f
-	mrs	x0, sctlr_el2
-	ldr	x1, =SCTLR_ELx_FLAGS
-	bic	x0, x0, x1
-	pre_disable_mmu_workaround
-	msr	sctlr_el2, x0
-	isb
-1:
 
 	/* Check if the new image needs relocation. */
 	tbnz	x16, IND_DONE_BIT, .Ldone
