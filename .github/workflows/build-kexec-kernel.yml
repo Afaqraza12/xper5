@@ -73,6 +73,35 @@ jobs:
           sed -i 's|#define TRACE_INCLUDE_PATH \.|#define TRACE_INCLUDE_PATH ../../kernel/sched/walt|' kernel/sched/walt/trace.h
           grep -q "CFLAGS_trace.o" kernel/sched/walt/Makefile || echo "CFLAGS_trace.o := -I\$(src)" >> kernel/sched/walt/Makefile
 
+          # Fix techpack broken symlinks pointing to external kernel/msm-5.4
+          mkdir -p kernel && ln -sf .. kernel/msm-5.4
+          python3 -c '
+          import os
+          kroot = os.path.abspath(".")
+          for root, dirs, files in os.walk("techpack"):
+              for f in files:
+                  fp = os.path.join(root, f)
+                  if os.path.islink(fp):
+                      t = os.readlink(fp)
+                      if "kernel/msm-5.4/" in t:
+                          sub = t.split("kernel/msm-5.4/")[1]
+                          rt = os.path.join(kroot, sub)
+                          if os.path.exists(rt):
+                              os.unlink(fp)
+                              os.symlink(os.path.relpath(rt, root), fp)
+          '
+
+          # Fix in-tree local directory includes for trace headers (e.g. hid-trace.h, walt/trace.h)
+          python3 -c '
+          p = "scripts/Makefile.lib"
+          c = open(p).read()
+          old = "ifdef building_out_of_srctree\n_c_flags   += -I $(srctree)/$(src) -I $(objtree)/$(obj)\n_a_flags   += -I $(srctree)/$(src) -I $(objtree)/$(obj)\n_cpp_flags += -I $(srctree)/$(src) -I $(objtree)/$(obj)\nendif"
+          new = "_c_flags   += -I $(srctree)/$(src) -I $(objtree)/$(obj)\n_a_flags   += -I $(srctree)/$(src) -I $(objtree)/$(obj)\n_cpp_flags += -I $(srctree)/$(src) -I $(objtree)/$(obj)"
+          open(p, "w").write(c.replace(old, new))
+          '
+          # Explicitly add CFLAGS for hid-trace
+          grep -q "CFLAGS_hid-trace.o" drivers/hid/Makefile || echo "CFLAGS_hid-trace.o := -I\$(src)" >> drivers/hid/Makefile
+
           # Keep exact stock version branding
           sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-qgki-g55a0c74ba38a"/' .config
           sed -i 's/CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' .config
