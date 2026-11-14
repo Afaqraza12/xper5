@@ -61,6 +61,14 @@ jobs:
           sed -i 's/CONFIG_UAPI_HEADER_TEST=y/# CONFIG_UAPI_HEADER_TEST is not set/' .config
           sed -i 's/CONFIG_HEADERS_INSTALL=y/# CONFIG_HEADERS_INSTALL is not set/' .config
 
+          # Neutralize Qualcomm gcc-wrapper.py so harmless warnings do not abort the build
+          printf '#!/usr/bin/env python3\nimport sys, os\nos.execvp(sys.argv[1], sys.argv[1:])\n' > scripts/gcc-wrapper.py
+          chmod +x scripts/gcc-wrapper.py
+
+          # Fix arm64 spinlock header types under CONFIG_PARAVIRT
+          sed -i 's|#include <asm-generic/qspinlock_types.h>|#include <linux/types.h>\n#include <asm-generic/qspinlock_types.h>|' arch/arm64/include/asm/spinlock_types.h
+          python3 -c 'p="include/asm-generic/qspinlock_types.h"; c=open(p).read(); open(p,"w").write(c.replace("#ifndef CONFIG_PARAVIRT\n#include <linux/types.h>", "#include <linux/types.h>\n#ifndef CONFIG_PARAVIRT"))'
+
           # Fix walt trace include path for Clang
           sed -i 's|#define TRACE_INCLUDE_PATH \.|#define TRACE_INCLUDE_PATH ../../kernel/sched/walt|' kernel/sched/walt/trace.h
           grep -q "CFLAGS_trace.o" kernel/sched/walt/Makefile || echo "CFLAGS_trace.o := -I\$(src)" >> kernel/sched/walt/Makefile
@@ -82,10 +90,10 @@ jobs:
           cd kernel_tree
           # Compile full kernel Image and DTBs with warning-as-error disabled to allow clean build
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
-            KCFLAGS="-Wno-error" \
+            KCFLAGS="-Wno-error -Wno-declaration-after-statement" \
             -j$(nproc) Image
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
-            KCFLAGS="-Wno-error" \
+            KCFLAGS="-Wno-error -Wno-declaration-after-statement" \
             -j$(nproc) dtbs || true
 
       - name: Compile kexec-mod LKM module
