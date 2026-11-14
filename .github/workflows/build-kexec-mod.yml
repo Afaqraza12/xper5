@@ -71,7 +71,7 @@ jobs:
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
             KBUILD_MODPOST_WARN=1 \
-            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize=all -fno-sanitize-trap=all -Wno-error" \
+            KCFLAGS="-fno-pic -mcmodel=large -Wno-error" \
             M=$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel modules -j$(nproc)
 
           echo "[+] Built modules:"
