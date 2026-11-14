@@ -38,32 +38,46 @@ MODULE_PARM_DESC(shim_hyp,
 
 static ssize_t kexec_debug_log_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	void __iomem *mb = ioremap_cache(0xffc00000, 0x1000);
-	u64 magic, step, target, dtb, pages;
+	void __iomem *mb = ioremap_cache(0xffd00000, 0x1000);
+	u64 magic, step, target, dtb, pages, sctlr_orig, sctlr_new, cur_el;
 	ssize_t ret;
 
 	if (!mb)
-		return sprintf(buf, "[-] Failed to ioremap_cache 0xffc00000\n");
+		return sprintf(buf, "[-] Failed to ioremap_cache 0xffd00000\n");
 
-	magic  = readq(mb);
-	step   = readq(mb + 8);
-	target = readq(mb + 16);
-	dtb    = readq(mb + 24);
-	pages  = readq(mb + 32);
+	magic      = readq(mb);
+	step       = readq(mb + 8);
+	target     = readq(mb + 16);
+	dtb        = readq(mb + 24);
+	pages      = readq(mb + 32);
+	sctlr_orig = readq(mb + 40);
+	sctlr_new  = readq(mb + 48);
+	cur_el     = readq(mb + 56);
 
 	ret = sprintf(buf,
-		"=== KEXEC HARDWARE MAILBOX (0xffc00000) ===\n"
+		"=== KEXEC HARDWARE MAILBOX (0xffd00000) ===\n"
 		"Magic:        0x%llx (%s)\n"
 		"Step:         %llu (%s)\n"
+		"CurrentEL:    0x%llx (EL%llu)\n"
+		"SCTLR Orig:   0x%llx\n"
+		"SCTLR New:    0x%llx\n"
 		"Target Entry: 0x%llx\n"
 		"DTB Address:  0x%llx\n"
 		"Pages Copied: %llu (0x%llx bytes)\n"
 		"===========================================\n",
 		magic, (magic == 0x4b455845435f4c47ULL) ? "VALID KEXEC_LG" : "INVALID / UNWRITTEN",
-		step, (step == 1) ? "Entry reached & MMU disabled" :
-		      (step == 3) ? "Relocating pages" :
-		      (step == 4) ? "Relocation finished" :
-		      (step == 5) ? "Jumped to new kernel / purgatory!" : "Unknown",
+		step, (step == 10) ? "Step 10: Relocation code entry reached (identity map active)" :
+		      (step == 11) ? "Step 11: CurrentEL read" :
+		      (step == 12) ? "Step 12: SCTLR_EL1 read" :
+		      (step == 13) ? "Step 13: New SCTLR_EL1 computed (MMU-off bits calculated)" :
+		      (step == 14) ? "Step 14: Immediately BEFORE msr SCTLR_EL1 (turning MMU off)" :
+		      (step == 15) ? "Step 15: Immediately AFTER msr SCTLR_EL1" :
+		      (step == 16) ? "Step 16: Immediately AFTER isb (barrier finished)" :
+		      (step == 17) ? "Step 17: Relocation copy loop entered" :
+		      (step == 18) ? "Step 18: Relocation copy loop finished" :
+		      (step == 19) ? "Step 19: Immediately BEFORE br x17 (jump to new kernel/purgatory)" : "Unknown",
+		cur_el, (cur_el >> 2) & 3,
+		sctlr_orig, sctlr_new,
 		target, dtb, pages, pages * 4096);
 
 	iounmap(mb);

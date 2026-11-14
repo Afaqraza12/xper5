@@ -32,52 +32,27 @@
 ENTRY(arm64_relocate_new_kernel)
 
 	/* 
-	 * Disable MMU and caches first!
-	 * Once SCTLR_EL1.M = 0, virtual address translation is disabled (VA == PA).
-	 * Any memory access will directly hit physical memory.
-	 */
-	mrs	x9, CurrentEL
-	cmp	x9, #CurrentEL_EL2
-	b.eq	1f
-
-	/* EL1: Disable MMU and caches in sctlr_el1 */
-	mrs	x9, sctlr_el1
-	movz	x10, #0x100f
-	movk	x10, #0x0020, lsl #16
-	bic	x9, x9, x10
-	msr	sctlr_el1, x9
-	isb
-	b	2f
-
-1:
-	/* EL2: Disable MMU and caches in sctlr_el2 */
-	mrs	x9, sctlr_el2
-	movz	x10, #0x100f
-	movk	x10, #0x0020, lsl #16
-	bic	x9, x9, x10
-	msr	sctlr_el2, x9
-	isb
-
-2:
-	/* 
-	 * Hardware Mailbox at physical 0xffc00000 (ramoops buffer, persists across resets)
-	 * Offset 0:  Magic "KEXEC_LG" (0x4b455845435f4c47)
-	 * Offset 8:  Step marker (1=Entry & MMU off, 3=Copying, 4=Done, 5=Jumping)
-	 * Offset 16: Target entry address (x17)
-	 * Offset 24: DTB address (x18)
-	 * Offset 32: Page copy count
+	 * Hardware Mailbox at physical 0xffd00000 (safe RAM, outside ramoops/pstore).
+	 * Memory at 0xffd00000 is identity-mapped in TTBR0 before jumping here.
+	 *
+	 * Layout at 0xffd00000:
+	 *   Offset 0:  Magic "KEXEC_LG" (0x4b455845435f4c47)
+	 *   Offset 8:  Step marker (10..19)
+	 *   Offset 16: Target entry address (x17)
+	 *   Offset 24: DTB address (x18)
+	 *   Offset 32: Page copy count
+	 *   Offset 40: SCTLR original value
+	 *   Offset 48: SCTLR new computed value (MMU off)
+	 *   Offset 56: CurrentEL value
 	 */
 	movz	x25, #0x0000
-	movk	x25, #0xffc0, lsl #16		/* x25 = 0xffc00000 (mailbox) */
+	movk	x25, #0xffd0, lsl #16		/* x25 = 0xffd00000 (mailbox) */
 
 	movz	x26, #0x4c47
 	movk	x26, #0x435f, lsl #16
 	movk	x26, #0x5845, lsl #32
 	movk	x26, #0x4b45, lsl #48
 	str	x26, [x25]			/* Magic = KEXEC_LG */
-
-	mov	x26, #1
-	str	x26, [x25, #8]			/* Step = 1 (Entry & MMU disabled) */
 
 	/* Setup the list loop variables. */
 	mov	x18, x2				/* x18 = dtb address */
@@ -92,11 +67,87 @@ ENTRY(arm64_relocate_new_kernel)
 	mov	x27, xzr			/* Pages copied counter = 0 */
 	str	x27, [x25, #32]
 
+	/* Step 10: Relocation code entry reached (identity mapping active) */
+	mov	x26, #10
+	str	x26, [x25, #8]
+
+	/* Step 11: Current exception level read */
+	mrs	x9, CurrentEL
+	str	x9, [x25, #56]
+	mov	x26, #11
+	str	x26, [x25, #8]
+
+	cmp	x9, #CurrentEL_EL2
+	b.eq	1f
+
+	/* EL1 Path */
+	/* Step 12: Current SCTLR_EL1 value read */
+	mrs	x9, sctlr_el1
+	str	x9, [x25, #40]
+	mov	x26, #12
+	str	x26, [x25, #8]
+
+	/* Step 13: The new SCTLR_EL1 value computed (MMU-off bits calculated) */
+	movz	x10, #0x100f
+	movk	x10, #0x0020, lsl #16
+	bic	x9, x9, x10
+	str	x9, [x25, #48]
+	mov	x26, #13
+	str	x26, [x25, #8]
+
+	/* Step 14: Immediately BEFORE the instruction that writes SCTLR_EL1 */
+	mov	x26, #14
+	str	x26, [x25, #8]
+
+	/* The MMU-disable write */
+	msr	sctlr_el1, x9
+
+	/* Step 15: Immediately AFTER that same instruction */
+	mov	x26, #15
+	str	x26, [x25, #8]
+
+	/* Barrier / sync instruction */
+	isb
+
+	/* Step 16: Immediately after the barrier/sync instruction that follows it */
+	mov	x26, #16
+	str	x26, [x25, #8]
+	b	2f
+
+1:
+	/* EL2 Path */
+	mrs	x9, sctlr_el2
+	str	x9, [x25, #40]
+	mov	x26, #12
+	str	x26, [x25, #8]
+
+	movz	x10, #0x100f
+	movk	x10, #0x0020, lsl #16
+	bic	x9, x9, x10
+	str	x9, [x25, #48]
+	mov	x26, #13
+	str	x26, [x25, #8]
+
+	mov	x26, #14
+	str	x26, [x25, #8]
+
+	msr	sctlr_el2, x9
+
+	mov	x26, #15
+	str	x26, [x25, #8]
+
+	isb
+
+	mov	x26, #16
+	str	x26, [x25, #8]
+
+2:
 	/* Check if the new image needs relocation. */
 	tbnz	x16, IND_DONE_BIT, .Ldone
 
-	mov	x26, #3
-	str	x26, [x25, #8]			/* Step = 3 (Relocating pages) */
+	/* Step 17: Relocation copy loop entered */
+	mov	x26, #17
+	str	x26, [x25, #8]
 
 .Lloop:
 	and	x12, x16, PAGE_MASK		/* x12 = addr */
@@ -107,8 +158,6 @@ ENTRY(arm64_relocate_new_kernel)
 
 	/*
 	 * Direct copy page in physical memory.
-	 * NOTE: dc ivac is deliberately omitted because caches and MMU are already
-	 * disabled (SCTLR_EL1.C = 0, M = 0), and dc ivac traps to Gunyah EL2 hypervisor.
 	 */
 	mov	x20, x13
 	mov	x21, x12
@@ -142,8 +191,9 @@ ENTRY(arm64_relocate_new_kernel)
 	tbz	x16, IND_DONE_BIT, .Lloop
 
 .Ldone:
-	mov	x26, #4
-	str	x26, [x25, #8]			/* Step = 4 (Relocation finished) */
+	/* Step 18: Relocation copy loop finished */
+	mov	x26, #18
+	str	x26, [x25, #8]
 
 	/* wait for writes from copy_page to finish */
 	dsb	sy
@@ -151,8 +201,9 @@ ENTRY(arm64_relocate_new_kernel)
 	dsb	sy
 	isb
 
-	mov	x26, #5
-	str	x26, [x25, #8]			/* Step = 5 (Jumping to new kernel!) */
+	/* Step 19: Immediately BEFORE the final jump to the new kernel's entry point */
+	mov	x26, #19
+	str	x26, [x25, #8]
 
 	/* Start new image. */
 	mov	x0, x18
