@@ -12,9 +12,11 @@
 #ifndef KEXEC_IDMAP_H
 #define KEXEC_IDMAP_H
 
-phys_addr_t kexec_pa_symbol(void *ptr);
+#include <linux/types.h>
 
 int kexec_idmap_setup(void);
+
+int kexec_idmap_add_page(phys_addr_t pa);
 
 void kexec_idmap_free(void);
 

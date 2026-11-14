@@ -212,17 +212,27 @@ void machine_kexec(struct kimage *kimage)
 		arm64_relocate_new_kernel_size);
 
        /*
-	* Copy arm64_relocate_new_kernel to the reboot_code_buffer for use
-	* after the kernel is shut down.
+	* Copy arm64_relocate_new_kernel to offset 0 of reboot_code_buffer.
 	*/
        memcpy(reboot_code_buffer, arm64_relocate_new_kernel,
 	      arm64_relocate_new_kernel_size);
 
-       /* Flush the reboot_code_buffer in preparation for its execution. */
-       __flush_dcache_area(reboot_code_buffer, arm64_relocate_new_kernel_size);
+       /*
+	* Copy position-independent __cpu_soft_restart to offset 512.
+	*/
+       memcpy(reboot_code_buffer + 512, __cpu_soft_restart,
+	      arm64_cpu_soft_restart_size ? arm64_cpu_soft_restart_size : 128);
 
-       flush_icache_range((uintptr_t)reboot_code_buffer,
-			    arm64_relocate_new_kernel_size);
+       /*
+	* Identity map the 2MB block containing reboot_code_buffer_phys.
+	*/
+       kexec_idmap_add_page(reboot_code_buffer_phys);
+
+       /* Flush the entire reboot_code_buffer page in preparation for its execution. */
+       __flush_dcache_area(reboot_code_buffer, PAGE_SIZE);
+
+       /* Invalidate instruction cache locally without IPI to offline CPUs. */
+       asm volatile("ic iallu\n\tisb" : : : "memory");
 
        /* Flush the kimage list and its buffers. */
        kexec_list_flush(kimage);
@@ -232,16 +242,40 @@ void machine_kexec(struct kimage *kimage)
 	       kexec_segment_flush(kimage);
 
        pr_info("Bye!\n");
-	watchdog_bite(1);
+       watchdog_bite(1);
 
        local_daif_mask();
 
-       /*
-	* Invoke cpu_soft_restart (native stock kernel routine if resolved, or LKM fallback)
-	* to shutdown the MMU, disable data caches, then transfer control to the reboot_code_buffer.
-	*/
+       /* Install identity mapping in TTBR0 */
+       kexec_idmap_install();
 
-       my_cpu_soft_restart(reboot_code_buffer_phys, kimage->head, kimage->start, 0);
+       /*
+	* Jump directly to __cpu_soft_restart placed at reboot_code_buffer_phys + 512.
+	* It disables the MMU, executes an ISB, and branches with MMU OFF to
+	* reboot_code_buffer_phys (arm64_relocate_new_kernel).
+	*
+	* Registers for __cpu_soft_restart:
+	*   x0 = el2_switch (0)
+	*   x1 = entry (reboot_code_buffer_phys)
+	*   x2 = arg0 (kimage->head)
+	*   x3 = arg1 (kimage->start)
+	*   x4 = arg2 (0)
+	*/
+       {
+	       register unsigned long x0 asm("x0") = 0;
+	       register unsigned long x1 asm("x1") = reboot_code_buffer_phys;
+	       register unsigned long x2 asm("x2") = kimage->head;
+	       register unsigned long x3 asm("x3") = kimage->start;
+	       register unsigned long x4 asm("x4") = 0;
+	       register unsigned long target asm("x8") = reboot_code_buffer_phys + 512;
+
+	       asm volatile(
+		       "br %0\n"
+		       :
+		       : "r"(target), "r"(x0), "r"(x1), "r"(x2), "r"(x3), "r"(x4)
+		       : "memory"
+	       );
+       }
 
        BUG(); /* Should never get here. */
 }

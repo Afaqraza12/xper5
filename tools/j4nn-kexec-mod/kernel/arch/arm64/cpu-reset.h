@@ -25,6 +25,8 @@ void __cpu_soft_restart(unsigned el2_switch,
 	unsigned long entry, unsigned long arg0, unsigned long arg1,
 	unsigned long arg2);
 
+extern const unsigned long arm64_cpu_soft_restart_size;
+
 void __noreturn km_cpu_soft_restart(unsigned long entry,
 					unsigned long arg0,
 					unsigned long arg1,

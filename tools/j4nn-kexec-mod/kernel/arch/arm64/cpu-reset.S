@@ -41,7 +41,8 @@
 ENTRY(__cpu_soft_restart)
 	/* Clear sctlr_el1 flags. */
 	mrs	x12, sctlr_el1
-	ldr	x13, =SCTLR_ELx_FLAGS
+	movz	x13, #0x100f
+	movk	x13, #0x0020, lsl #16
 	bic	x12, x12, x13
 	msr	sctlr_el1, x12
 	isb
@@ -62,3 +63,7 @@ ENTRY(__cpu_soft_restart)
 	mov	x2, x4				// arg2
 	br	x8
 ENDPROC(__cpu_soft_restart)
+
+.globl arm64_cpu_soft_restart_size
+arm64_cpu_soft_restart_size:
+	.quad	. - __cpu_soft_restart

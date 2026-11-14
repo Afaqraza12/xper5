@@ -66,18 +66,37 @@ static void my_cpu_set_reserved_ttbr0(void)
 pgd_t *kexec_idmap_pg_dir = NULL;
 pte_t *kexec_idmap_pt = NULL;
 static pte_t *pmd_table_for_pdx[PTRS_PER_PGD];
+static int next_pmd_table = 0;
 
-extern void __cpu_soft_restart(unsigned el2_switch,
-	unsigned long entry, unsigned long arg0, unsigned long arg1,
-	unsigned long arg2);
+int kexec_idmap_add_page(phys_addr_t pa)
+{
+	unsigned long pdx = pgd_index(pa);
+	pte_t *pmd;
+
+	if (!kexec_idmap_pg_dir)
+		return -EINVAL;
+
+	if (pmd_table_for_pdx[pdx]) {
+		pmd = pmd_table_for_pdx[pdx];
+	} else {
+		if (next_pmd_table >= 4) {
+			pr_err("kexec_idmap: out of PMD tables\n");
+			return -ENOMEM;
+		}
+		pmd = kexec_idmap_pt + (next_pmd_table * PTRS_PER_PTE);
+		next_pmd_table++;
+		pmd_table_for_pdx[pdx] = pmd;
+		kexec_idmap_pg_dir[pdx] = __pgd(virt_to_phys(pmd) | PMD_TYPE_TABLE);
+		pr_info("Created idmap PMD table for pdx %lu (pa 0x%lx)\n", pdx, (unsigned long)pa);
+	}
+
+	pmd[block_index(pa)] = __pte(block_align(pa) | MM_MMUFLAGS);
+	pr_info("Identity mapped 2MB block for pa 0x%lx\n", (unsigned long)pa);
+	return 0;
+}
 
 int kexec_idmap_setup(void)
 {
-	int i;
-	unsigned long pa, pdx;
-	pte_t *pmd, *next_pmd;
-	void *ptrs[4];
-
 	kexec_idmap_pg_dir = (pgd_t *)get_zeroed_page(GFP_KERNEL);
 	if (!kexec_idmap_pg_dir) {
 		pr_err("Failed to allocate kexec_idmap_pg_dir\n");
@@ -94,30 +113,11 @@ int kexec_idmap_setup(void)
 	}
 
 	memset(pmd_table_for_pdx, 0, sizeof(pmd_table_for_pdx));
-	next_pmd = kexec_idmap_pt;
+	next_pmd_table = 0;
 
-	ptrs[0] = kexec_idmap_pg_dir;
-	ptrs[1] = kexec_idmap_pt;
-	ptrs[2] = kexec_idmap_pt + PTRS_PER_PTE;
-	ptrs[3] = (void *)__cpu_soft_restart;
-
-	for (i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); i++) {
-		pa = kexec_pa_symbol(ptrs[i]);
-		pdx = pgd_index(pa);
-
-		if (pmd_table_for_pdx[pdx]) {
-			pmd = pmd_table_for_pdx[pdx];
-		} else {
-			pr_info("Created new idmap page table for 0x%lx\n", pa);
-
-			pmd = next_pmd;
-			next_pmd += PTRS_PER_PTE;
-			pmd_table_for_pdx[pdx] = pmd;
-			kexec_idmap_pg_dir[pdx] = __pgd(kexec_pa_symbol(pmd) | PMD_TYPE_TABLE);
-		}
-
-		pmd[block_index(pa)] = __pte(block_align(pa) | MM_MMUFLAGS);
-	}
+	/* Pre-map the idmap page tables */
+	kexec_idmap_add_page(virt_to_phys(kexec_idmap_pg_dir));
+	kexec_idmap_add_page(virt_to_phys(kexec_idmap_pt));
 
 	return 0;
 }
@@ -140,10 +140,13 @@ void kexec_idmap_install(void)
 
 	my_cpu_set_reserved_ttbr0();
 	flush_tlb_all();
-	cpu_set_idmap_tcr_t0sz();
 
+	/*
+	 * Keep TCR_EL1.T0SZ = 25 (standard 39-bit VA, 3-level translation matching
+	 * our PGD -> PMD 2MB blocks). Do NOT alter T0SZ as that causes Level-0 mismatches.
+	 */
 	if (kexec_idmap_pg_dir) {
-		ttbr = phys_to_ttbr(kexec_pa_symbol(kexec_idmap_pg_dir));
+		ttbr = phys_to_ttbr(virt_to_phys(kexec_idmap_pg_dir));
 		write_sysreg(ttbr, ttbr0_el1);
 		isb();
 	}
