@@ -35,15 +35,7 @@ jobs:
           sudo ln -sf /usr/bin/llvm-strip-11 /usr/local/bin/llvm-strip
 
           # Wrapper for llvm-nm to handle SIGPIPE (broken pipe) gracefully
-          sudo tee /usr/local/bin/llvm-nm > /dev/null << 'EOF'
-#!/bin/bash
-/usr/bin/llvm-nm-11 "$@"
-ret=$?
-if [ $ret -eq 141 ] || [ $ret -eq 134 ]; then
-  exit 0
-fi
-exit $ret
-EOF
+          printf '#!/bin/bash\n/usr/bin/llvm-nm-11 "$@"\nret=$?\nif [ $ret -eq 141 ] || [ $ret -eq 134 ]; then\n  exit 0\nfi\nexit $ret\n' | sudo tee /usr/local/bin/llvm-nm > /dev/null
           sudo chmod +x /usr/local/bin/llvm-nm
 
       - name: Clone Sony Xperia SM8350 Android 13 kernel tree
