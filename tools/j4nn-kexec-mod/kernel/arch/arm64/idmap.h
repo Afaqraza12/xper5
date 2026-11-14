@@ -14,7 +14,9 @@
 
 phys_addr_t kexec_pa_symbol(void *ptr);
 
-void kexec_idmap_setup(void);
+int kexec_idmap_setup(void);
+
+void kexec_idmap_free(void);
 
 void kexec_idmap_install(void);
 

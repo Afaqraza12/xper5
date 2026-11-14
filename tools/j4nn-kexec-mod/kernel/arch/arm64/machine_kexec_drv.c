@@ -44,7 +44,11 @@ kexecmod_arm64_init(void)
 	}
 
 	/* Build identity map for MMU */
-	kexec_idmap_setup();
+	if ((err = kexec_idmap_setup()) != 0) {
+		pr_err("Failed to setup idmap: %d\n", err);
+		machine_kexec_compat_unload();
+		return err;
+	}
 
 	return 0;
 }
@@ -54,6 +58,8 @@ module_init(kexecmod_arm64_init)
 static void __exit
 kexecmod_arm64_exit(void)
 {
+	kexec_idmap_free();
+
 	/* Unload compatibility layer */
 	machine_kexec_compat_unload();
 }

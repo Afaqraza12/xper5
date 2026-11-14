@@ -14,14 +14,17 @@
 
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
+#include <linux/slab.h>
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 #include "../../kexec_compat.h"
 
+extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
+
 static void my_cpu_set_reserved_ttbr0(void)
 {
 	unsigned long rpd = find_symbol_via_kprobe("reserved_pg_dir");
-	unsigned long pa = rpd ? virt_to_phys((void *)rpd) : 0;
+	unsigned long pa = rpd ? virt_to_phys((void *)rpd) : virt_to_phys(empty_zero_page);
 	unsigned long ttbr = phys_to_ttbr(pa);
 
 	write_sysreg(ttbr, ttbr0_el1);
@@ -60,42 +63,74 @@ static void my_cpu_set_reserved_ttbr0(void)
 #define MM_MMUFLAGS	PMD_ATTRINDX(MT_NORMAL) | PMD_FLAGS
 #endif
 
-pgd_t kexec_idmap_pg_dir[PTRS_PER_PGD] __attribute__ ((aligned (4096)));
-pte_t kexec_idmap_pt[2 * PTRS_PER_PTE] __attribute__ ((aligned (4096)));
+pgd_t *kexec_idmap_pg_dir = NULL;
+pte_t *kexec_idmap_pt = NULL;
+static pte_t *pmd_table_for_pdx[PTRS_PER_PGD];
 
 extern void __cpu_soft_restart(unsigned el2_switch,
 	unsigned long entry, unsigned long arg0, unsigned long arg1,
 	unsigned long arg2);
 
-void kexec_idmap_setup(void)
+int kexec_idmap_setup(void)
 {
 	int i;
 	unsigned long pa, pdx;
-	pte_t *pmd, *next_pmd = kexec_idmap_pt;
-	void *ptrs[4] = {kexec_idmap_pg_dir,
-			 kexec_idmap_pt,
-			 kexec_idmap_pt + PTRS_PER_PTE,
-			 __cpu_soft_restart};
+	pte_t *pmd, *next_pmd;
+	void *ptrs[4];
 
-	/* Clear the idmap page table */
-	memset(kexec_idmap_pg_dir, 0, sizeof(kexec_idmap_pg_dir));
-	memset(kexec_idmap_pt, 0, sizeof(kexec_idmap_pt));
+	kexec_idmap_pg_dir = (pgd_t *)get_zeroed_page(GFP_KERNEL);
+	if (!kexec_idmap_pg_dir) {
+		pr_err("Failed to allocate kexec_idmap_pg_dir\n");
+		return -ENOMEM;
+	}
+
+	/* Allocate 4 pages for PMD tables to guarantee no overflow */
+	kexec_idmap_pt = (pte_t *)alloc_pages_exact(4 * PAGE_SIZE, GFP_KERNEL | __GFP_ZERO);
+	if (!kexec_idmap_pt) {
+		pr_err("Failed to allocate kexec_idmap_pt\n");
+		free_page((unsigned long)kexec_idmap_pg_dir);
+		kexec_idmap_pg_dir = NULL;
+		return -ENOMEM;
+	}
+
+	memset(pmd_table_for_pdx, 0, sizeof(pmd_table_for_pdx));
+	next_pmd = kexec_idmap_pt;
+
+	ptrs[0] = kexec_idmap_pg_dir;
+	ptrs[1] = kexec_idmap_pt;
+	ptrs[2] = kexec_idmap_pt + PTRS_PER_PTE;
+	ptrs[3] = (void *)__cpu_soft_restart;
 
 	for (i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); i++) {
 		pa = kexec_pa_symbol(ptrs[i]);
 		pdx = pgd_index(pa);
 
-		if (pgd_val(kexec_idmap_pg_dir[pdx])) {
-			pmd = (void *) phys_to_virt(pgd_val(kexec_idmap_pg_dir[pdx]) & ~0xFFF);
+		if (pmd_table_for_pdx[pdx]) {
+			pmd = pmd_table_for_pdx[pdx];
 		} else {
 			pr_info("Created new idmap page table for 0x%lx\n", pa);
 
 			pmd = next_pmd;
 			next_pmd += PTRS_PER_PTE;
+			pmd_table_for_pdx[pdx] = pmd;
 			kexec_idmap_pg_dir[pdx] = __pgd(kexec_pa_symbol(pmd) | PMD_TYPE_TABLE);
 		}
 
 		pmd[block_index(pa)] = __pte(block_align(pa) | MM_MMUFLAGS);
+	}
+
+	return 0;
+}
+
+void kexec_idmap_free(void)
+{
+	if (kexec_idmap_pt) {
+		free_pages_exact(kexec_idmap_pt, 4 * PAGE_SIZE);
+		kexec_idmap_pt = NULL;
+	}
+	if (kexec_idmap_pg_dir) {
+		free_page((unsigned long)kexec_idmap_pg_dir);
+		kexec_idmap_pg_dir = NULL;
 	}
 }
 
@@ -105,7 +140,8 @@ void kexec_idmap_install(void)
 	flush_tlb_all();
 	cpu_set_idmap_tcr_t0sz();
 
-	cpu_do_switch_mm(kexec_pa_symbol(kexec_idmap_pg_dir), &init_mm);
+	if (kexec_idmap_pg_dir)
+		cpu_do_switch_mm(kexec_pa_symbol(kexec_idmap_pg_dir), &init_mm);
 }
 
 /**

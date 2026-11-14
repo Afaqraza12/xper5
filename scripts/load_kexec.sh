@@ -8,10 +8,14 @@ WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 echo "=== Loading Kexec LKM for Sony Xperia 5 III (SOG05) ==="
 
-MOD_DIR="${WORKSPACE_DIR}/5.4-custom-kernel/cfi_build"
+MOD_DIR="${1:-${WORKSPACE_DIR}/5.4-custom-kernel/cfi_build}"
 if [ ! -f "${MOD_DIR}/kexec_mod_arm64.ko" ] || [ ! -f "${MOD_DIR}/kexec_mod.ko" ]; then
-    echo "[-] Error: kexec modules not found in ${MOD_DIR}!"
-    exit 1
+    if [ -f "${WORKSPACE_DIR}/5.4-custom-kernel/ksu_matched_build/kexec_mod_arm64.ko" ]; then
+        MOD_DIR="${WORKSPACE_DIR}/5.4-custom-kernel/ksu_matched_build"
+    else
+        echo "[-] Error: kexec modules not found in ${MOD_DIR}!"
+        exit 1
+    fi
 fi
 
 echo "[*] Checking temporary root status..."
