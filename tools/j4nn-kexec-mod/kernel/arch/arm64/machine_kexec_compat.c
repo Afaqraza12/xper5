@@ -136,7 +136,7 @@ static void __init_mm(void)
 	 * However, we can find its physical address in the TTBR1_EL1 register
 	 * and convert it to a logical address.
 	 */
-	u32 val;
+	u64 val;
 	asm volatile("mrs %0, ttbr1_el1" : "=r" (val));
 	init_mm.pgd = phys_to_virt(val);
 }

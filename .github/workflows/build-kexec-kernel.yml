@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang-11 lld-11 llvm-11 gcc-aarch64-linux-gnu \
+            clang-11 lld-11 llvm-11 gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
             make bc bison flex libssl-dev libelf-dev xz-utils device-tree-compiler
           # Symlink LLVM 11 tools to standard names
           sudo ln -sf /usr/bin/clang-11 /usr/local/bin/clang
