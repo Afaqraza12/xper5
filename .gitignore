@@ -14,3 +14,9 @@ kernel_config.gz
 *.swp
 *.o
 dsu_staging/
+*.zip
+android13_lineage20/
+android17_lineage24/
+out/
+logs/
+5.4-custom-kernel/

@@ -1,0 +1,128 @@
+name: Build Sagami 5.4 Kexec Kernel & LKM
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-kexec-kernel.yml'
+      - 'tools/j4nn-kexec-mod/**'
+
+jobs:
+  build-kexec:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-11 lld-11 llvm-11 gcc-aarch64-linux-gnu \
+            make bc bison flex libssl-dev libelf-dev xz-utils device-tree-compiler
+          # Symlink LLVM 11 tools to standard names
+          sudo ln -sf /usr/bin/clang-11 /usr/local/bin/clang
+          sudo ln -sf /usr/bin/clang++-11 /usr/local/bin/clang++
+          sudo ln -sf /usr/bin/lld-11 /usr/local/bin/ld.lld
+          sudo ln -sf /usr/bin/llvm-ar-11 /usr/local/bin/llvm-ar
+          sudo ln -sf /usr/bin/llvm-nm-11 /usr/local/bin/llvm-nm
+          sudo ln -sf /usr/bin/llvm-objcopy-11 /usr/local/bin/llvm-objcopy
+          sudo ln -sf /usr/bin/llvm-objdump-11 /usr/local/bin/llvm-objdump
+          sudo ln -sf /usr/bin/llvm-readelf-11 /usr/local/bin/llvm-readelf
+          sudo ln -sf /usr/bin/llvm-size-11 /usr/local/bin/llvm-size
+          sudo ln -sf /usr/bin/llvm-strip-11 /usr/local/bin/llvm-strip
+
+      - name: Clone Sony Xperia SM8350 Android 13 kernel tree
+        run: |
+          git clone --depth=1 -b master_qcom_a13 https://github.com/Skyler1n/android_kernel_sony_sm8350.git kernel_tree
+
+      - name: Configure kernel tree with CONFIG_KEXEC
+        run: |
+          cd kernel_tree
+          # Set exact sublevel 210 in Makefile
+          sed -i 's/SUBLEVEL = .*/SUBLEVEL = 210/' Makefile
+
+          # Copy our exact extracted kernel config and Module.symvers
+          cp ../kernel_config .config
+
+          # Enable KEXEC in defconfig
+          sed -i 's/# CONFIG_KEXEC is not set/CONFIG_KEXEC=y/' .config
+          sed -i 's/# CONFIG_KEXEC_FILE is not set/CONFIG_KEXEC_FILE=y/' .config
+          grep -q "CONFIG_KEXEC=y" .config || echo "CONFIG_KEXEC=y" >> .config
+          grep -q "CONFIG_KEXEC_FILE=y" .config || echo "CONFIG_KEXEC_FILE=y" >> .config
+
+          # Keep exact stock version branding
+          sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-qgki-g55a0c74ba38a"/' .config
+          sed -i 's/CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' .config
+
+          cp ../Module.symvers Module.symvers
+
+          # Generate configuration headers non-interactively
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 olddefconfig
+
+          # Prepare include files
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
+
+          # Overlay exact live device kernel headers
+          tar -xf ../kheaders.tar.xz -C .
+
+          # Force exact vermagic string matching the live Sony Xperia 5 III kernel
+          echo '#define UTS_RELEASE "5.4.210-qgki-g55a0c74ba38a"' > include/generated/utsrelease.h
+
+      - name: Compile target kernel Image and DTBs
+        run: |
+          cd kernel_tree
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 -j$(nproc) Image dtbs
+
+      - name: Compile kexec-mod LKM module
+        run: |
+          cd kernel_tree
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
+            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi" \
+            M=$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel modules -j$(nproc) || true
+
+      - name: Compile user-space helper redir.so
+        run: |
+          cd tools/j4nn-kexec-mod/user
+          aarch64-linux-gnu-gcc -O2 -Wall -shared -fpic -o redir.so redir.c
+
+      - name: Stage build artifacts
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/kexec_out
+
+          # 1. Target Kernel Image
+          if [ -f kernel_tree/arch/arm64/boot/Image ]; then
+            cp kernel_tree/arch/arm64/boot/Image $GITHUB_WORKSPACE/kexec_out/Image
+            echo "[+] Target Image staged: $(ls -lh $GITHUB_WORKSPACE/kexec_out/Image)"
+          fi
+
+          # 2. Target Device Tree Blobs for pdx214
+          find kernel_tree/arch/arm64/boot/dts/ -name "*pdx214*.dtb" -exec cp {} $GITHUB_WORKSPACE/kexec_out/ \; || true
+          find kernel_tree/arch/arm64/boot/dts/ -name "*sagami*.dtb" -exec cp {} $GITHUB_WORKSPACE/kexec_out/ \; || true
+
+          # 3. Kexec Module
+          find "$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel" -name "*.ko" -exec cp {} $GITHUB_WORKSPACE/kexec_out/ \; || true
+
+          # 4. User-space binaries (redir.so and static kexec tool)
+          if [ -f "$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/user/redir.so" ]; then
+            cp "$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/user/redir.so" $GITHUB_WORKSPACE/kexec_out/
+          fi
+          if [ -f "$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/user/kexec" ]; then
+            cp "$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/user/kexec" $GITHUB_WORKSPACE/kexec_out/
+          fi
+
+          # Strip debug symbols on modules
+          for m in $GITHUB_WORKSPACE/kexec_out/*.ko; do
+            [ -f "$m" ] && llvm-strip --strip-debug "$m"
+          done
+
+          ls -la $GITHUB_WORKSPACE/kexec_out/
+
+      - name: Upload Kexec Kernel & LKM Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sagami-5.4-kexec-pdx214
+          path: kexec_out/*
