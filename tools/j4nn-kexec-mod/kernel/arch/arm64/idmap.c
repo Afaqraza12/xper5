@@ -12,6 +12,8 @@
 #define MODULE_NAME "kexec_mod_arm64"
 #define pr_fmt(fmt) MODULE_NAME ": " fmt
 
+#include <linux/mm.h>
+#include <linux/vmalloc.h>
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 #include "../../kexec_compat.h"
@@ -114,36 +116,13 @@ void kexec_idmap_install(void)
 phys_addr_t kexec_pa_symbol(void *ptr)
 {
 	unsigned long va = (unsigned long) ptr;
-	unsigned long page_offset;
-	pgd_t *pgd;
-	pud_t *pud;
-	pmd_t *pmd;
-	pte_t *ptep, pte;
-	struct page *page = NULL;
+	unsigned long page_offset = va & ~PAGE_MASK;
+	struct page *p;
 
-	pgd = pgd_offset_k(va);
-	if (pgd_none(*pgd) || pgd_bad(*pgd)) {
-		return 0;
+	if (is_vmalloc_addr(ptr)) {
+		p = vmalloc_to_page(ptr);
+		if (p)
+			return (phys_addr_t)(page_to_phys(p) | page_offset);
 	}
-
-	pud = pud_offset(pgd , va);
-	if (pud_none(*pud) || pud_bad(*pud)) {
-		return 0;
-	}
-
-	pmd = pmd_offset(pud, va);
-	if (pmd_none(*pmd) || pmd_bad(*pmd)) {
-		return 0;
-	}
-
-	ptep = pte_offset_map(pmd, va);
-	if (!ptep) {
-		return 0;
-	}
-
-	pte = *ptep;
-	pte_unmap(ptep);
-	page = pte_page(pte);
-	page_offset = va & ~PAGE_MASK;
-	return page_to_phys(page) | page_offset;
+	return (phys_addr_t)(virt_to_phys(ptr));
 }

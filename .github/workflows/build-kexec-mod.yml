@@ -53,6 +53,12 @@ jobs:
           sed -i 's/CONFIG_UAPI_HEADER_TEST=y/# CONFIG_UAPI_HEADER_TEST is not set/' .config
           sed -i 's/CONFIG_HEADERS_INSTALL=y/# CONFIG_HEADERS_INSTALL is not set/' .config
 
+          # Force exact vermagic string matching the running Xperia 5 III kernel
+          sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-qgki-g55a0c74ba38a"/' .config
+          sed -i 's/CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' .config
+          printf '#!/bin/sh\necho ""\n' > scripts/setlocalversion
+          chmod +x scripts/setlocalversion
+
           # Configure with exact vermagic
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 olddefconfig
           echo '#define UTS_RELEASE "5.4.210-qgki-g55a0c74ba38a"' > include/generated/utsrelease.h

@@ -72,29 +72,10 @@ u32 __boot_cpu_mode[2];
  */
 static int __init_cpu_boot_mode(void)
 {
-	extern phys_addr_t kexec_pa_symbol(void *ptr);
-	/*
-	 * Hack to obtain pointer to __boot_mode_cpu
-	 * Our approach is to decode the address to __boot_mode_cpu from the instructions
-	 * of set_cpu_boot_mode_flag which is exported and references __boot_mode_cpu.
-	 */
-	u32 *set_cpu_boot_mode_flag_ptr = (void *)find_symbol_via_kprobe("set_cpu_boot_mode_flag");
-	void *page = (void *) (((u64)set_cpu_boot_mode_flag_ptr) & ~0xFFF);
-	u16 lo = (set_cpu_boot_mode_flag_ptr[0] >> 29) & 0x3;
-	u16 hi = (set_cpu_boot_mode_flag_ptr[0] >> 4) & 0xFFFF;
-	u16 off = (set_cpu_boot_mode_flag_ptr[1] >> 10) & 0xFFF;
-	u32 *__boot_cpu_mode_ptr = page + ((hi << 13) | (lo << 12)) + off;
-
-	/* Verify whether address actually exists */
-	if (kexec_pa_symbol(__boot_cpu_mode_ptr)) {
-		__boot_cpu_mode[0] = __boot_cpu_mode_ptr[0];
-		__boot_cpu_mode[1] = __boot_cpu_mode_ptr[1];
-
-		pr_info("Detected boot CPU mode: 0x%x 0x%x.\n", __boot_cpu_mode[0], __boot_cpu_mode[1]);
-		return 0;
-	}
-
-	return -1;
+	__boot_cpu_mode[0] = BOOT_CPU_MODE_EL1;
+	__boot_cpu_mode[1] = BOOT_CPU_MODE_EL1;
+	pr_info("Boot CPU mode set to EL1 for Android SM8350.\n");
+	return 0;
 }
 
 static void *__hyp_shim;
@@ -133,14 +114,14 @@ struct mm_struct init_mm;
 
 static void __init_mm(void)
 {
-	/*
-	 * Hack to obtain pointer to swapper_pg_dir (since it is not exported).
-	 * However, we can find its physical address in the TTBR1_EL1 register
-	 * and convert it to a logical address.
-	 */
-	u64 val;
-	asm volatile("mrs %0, ttbr1_el1" : "=r" (val));
-	init_mm.pgd = phys_to_virt(val);
+	unsigned long spd = find_symbol_via_kprobe("swapper_pg_dir");
+	if (spd) {
+		init_mm.pgd = (pgd_t *)spd;
+	} else {
+		u64 val;
+		asm volatile("mrs %0, ttbr1_el1" : "=r" (val));
+		init_mm.pgd = phys_to_virt(val & 0x0000ffffffffffffULL);
+	}
 }
 
 

@@ -22,7 +22,7 @@ MODULE_AUTHOR("Fabian Mastenbroek <mail.fabianm@gmail.com>");
 MODULE_DESCRIPTION("Kexec backport as Kernel Module for ARM64");
 MODULE_VERSION("1.1");
 
-static int detect_el2 = 1;
+static int detect_el2 = 0;
 module_param(detect_el2, int, 0);
 MODULE_PARM_DESC(detect_el2,
 		 "Attempt to detect EL2 mode (default = 1)");
