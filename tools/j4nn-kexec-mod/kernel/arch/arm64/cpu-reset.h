@@ -37,6 +37,10 @@ static void __noreturn km_cpu_soft_restart(unsigned long entry,
 	el2_switch = el2_switch && !is_kernel_in_hyp_mode() &&
 		is_hyp_mode_available();
 
+	/* Ensure __cpu_soft_restart is pushed to PoC so instruction fetch reads it cleanly */
+	__flush_dcache_area(__cpu_soft_restart, 256);
+	flush_icache_range((uintptr_t)__cpu_soft_restart, (uintptr_t)__cpu_soft_restart + 256);
+
 	restart = (void *)kexec_pa_symbol(__cpu_soft_restart);
 
 	/* Shim the hypervisor vectors for HYP_SOFT_RESTART support if enabled */

@@ -136,29 +136,35 @@ void kexec_idmap_free(void)
 
 void kexec_idmap_install(void)
 {
+	unsigned long ttbr;
+
 	my_cpu_set_reserved_ttbr0();
 	flush_tlb_all();
 	cpu_set_idmap_tcr_t0sz();
 
-	if (kexec_idmap_pg_dir)
-		cpu_do_switch_mm(kexec_pa_symbol(kexec_idmap_pg_dir), &init_mm);
+	if (kexec_idmap_pg_dir) {
+		ttbr = phys_to_ttbr(kexec_pa_symbol(kexec_idmap_pg_dir));
+		write_sysreg(ttbr, ttbr0_el1);
+		isb();
+	}
 }
 
 /**
- * Resolve the physical address of the specified pointer.
- * We cannot use __pa_symbol for symbols defined in our kernel module, so we need to walk
- * the page manually.
+ * Resolve the physical address of any virtual pointer using hardware Address Translation.
+ * We cannot use __pa_symbol for symbols defined in our kernel module, and is_vmalloc_addr
+ * does not cover MODULES_VADDR on ARM64. AT S1E1R queries the MMU hardware directly.
  */
 phys_addr_t kexec_pa_symbol(void *ptr)
 {
 	unsigned long va = (unsigned long) ptr;
-	unsigned long page_offset = va & ~PAGE_MASK;
-	struct page *p;
+	u64 par;
 
-	if (is_vmalloc_addr(ptr)) {
-		p = vmalloc_to_page(ptr);
-		if (p)
-			return (phys_addr_t)(page_to_phys(p) | page_offset);
+	asm volatile("at s1e1r, %0\n\tisb\n\tmrs %1, par_el1"
+		     : : "r" (va), "=r" (par) : "memory");
+
+	if (!(par & 1)) {
+		return (phys_addr_t)((par & 0x0000fffffffff000ULL) | (va & ~PAGE_MASK));
 	}
+
 	return (phys_addr_t)(virt_to_phys(ptr));
 }
