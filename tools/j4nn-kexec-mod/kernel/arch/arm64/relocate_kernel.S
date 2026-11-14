@@ -32,25 +32,10 @@
 ENTRY(arm64_relocate_new_kernel)
 
 	/* 
-	 * Hardware Mailbox at physical 0xffc00000 (ramoops buffer, persists across resets)
-	 * Offset 0:  Magic "KEXEC_LG" (0x4b455845435f4c47)
-	 * Offset 8:  Step marker (1=Entry, 2=MMU off, 3=Copying, 4=Done, 5=Jumping)
-	 * Offset 16: Target entry address (x17)
-	 * Offset 24: DTB address (x18)
-	 * Offset 32: Page copy count
+	 * Disable MMU and caches first!
+	 * Once SCTLR_EL1.M = 0, virtual address translation is disabled (VA == PA).
+	 * Any memory access will directly hit physical memory.
 	 */
-	movz	x25, #0x0000
-	movk	x25, #0xffc0, lsl #16		/* x25 = 0xffc00000 (mailbox) */
-
-	movz	x26, #0x4c47
-	movk	x26, #0x435f, lsl #16
-	movk	x26, #0x5845, lsl #32
-	movk	x26, #0x4b45, lsl #48
-	str	x26, [x25]			/* Magic = KEXEC_LG */
-	mov	x26, #1
-	str	x26, [x25, #8]			/* Step = 1 (Entry) */
-
-	/* Disable MMU and caches first */
 	mrs	x9, CurrentEL
 	cmp	x9, #CurrentEL_EL2
 	b.eq	1f
@@ -74,8 +59,25 @@ ENTRY(arm64_relocate_new_kernel)
 	isb
 
 2:
-	mov	x26, #2
-	str	x26, [x25, #8]			/* Step = 2 (MMU disabled) */
+	/* 
+	 * Hardware Mailbox at physical 0xffc00000 (ramoops buffer, persists across resets)
+	 * Offset 0:  Magic "KEXEC_LG" (0x4b455845435f4c47)
+	 * Offset 8:  Step marker (1=Entry & MMU off, 3=Copying, 4=Done, 5=Jumping)
+	 * Offset 16: Target entry address (x17)
+	 * Offset 24: DTB address (x18)
+	 * Offset 32: Page copy count
+	 */
+	movz	x25, #0x0000
+	movk	x25, #0xffc0, lsl #16		/* x25 = 0xffc00000 (mailbox) */
+
+	movz	x26, #0x4c47
+	movk	x26, #0x435f, lsl #16
+	movk	x26, #0x5845, lsl #32
+	movk	x26, #0x4b45, lsl #48
+	str	x26, [x25]			/* Magic = KEXEC_LG */
+
+	mov	x26, #1
+	str	x26, [x25, #8]			/* Step = 1 (Entry & MMU disabled) */
 
 	/* Setup the list loop variables. */
 	mov	x18, x2				/* x18 = dtb address */

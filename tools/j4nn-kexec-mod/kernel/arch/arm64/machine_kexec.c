@@ -218,9 +218,11 @@ void machine_kexec(struct kimage *kimage)
 	      arm64_relocate_new_kernel_size);
 
        /*
-	* Identity map the 2MB block containing reboot_code_buffer_phys.
+	* Identity map the 2MB block containing reboot_code_buffer_phys and
+	* the persistent ramoops hardware mailbox at physical 0xffc00000.
 	*/
        kexec_idmap_add_page(reboot_code_buffer_phys);
+       kexec_idmap_add_page(0xffc00000);
 
        /* Flush the entire reboot_code_buffer page in preparation for its execution. */
        __flush_dcache_area(reboot_code_buffer, PAGE_SIZE);

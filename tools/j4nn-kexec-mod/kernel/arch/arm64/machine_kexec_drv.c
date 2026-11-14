@@ -60,11 +60,10 @@ static ssize_t kexec_debug_log_show(struct kobject *kobj, struct kobj_attribute 
 		"Pages Copied: %llu (0x%llx bytes)\n"
 		"===========================================\n",
 		magic, (magic == 0x4b455845435f4c47ULL) ? "VALID KEXEC_LG" : "INVALID / UNWRITTEN",
-		step, (step == 1) ? "Entry reached" :
-		      (step == 2) ? "MMU disabled" :
+		step, (step == 1) ? "Entry reached & MMU disabled" :
 		      (step == 3) ? "Relocating pages" :
 		      (step == 4) ? "Relocation finished" :
-		      (step == 5) ? "Jumped to new kernel!" : "Unknown",
+		      (step == 5) ? "Jumped to new kernel / purgatory!" : "Unknown",
 		target, dtb, pages, pages * 4096);
 
 	iounmap(mb);
