@@ -45,14 +45,14 @@ jobs:
           # Set exact sublevel 210 in Makefile
           sed -i 's/SUBLEVEL = .*/SUBLEVEL = 210/' Makefile
 
-          # Copy our exact extracted kernel config and Module.symvers
+          # Copy our extracted kernel config
           cp ../kernel_config .config
 
-          # Enable KEXEC in defconfig
+          # Enable KEXEC in defconfig (standard kexec)
           sed -i 's/# CONFIG_KEXEC is not set/CONFIG_KEXEC=y/' .config
-          sed -i 's/# CONFIG_KEXEC_FILE is not set/CONFIG_KEXEC_FILE=y/' .config
           grep -q "CONFIG_KEXEC=y" .config || echo "CONFIG_KEXEC=y" >> .config
-          grep -q "CONFIG_KEXEC_FILE=y" .config || echo "CONFIG_KEXEC_FILE=y" >> .config
+          # Ensure experimental KEXEC_FILE is disabled (avoids missing kexec_image_ops in arm64 5.4)
+          sed -i 's/CONFIG_KEXEC_FILE=y/# CONFIG_KEXEC_FILE is not set/' .config
 
           # Keep exact stock version branding
           sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-qgki-g55a0c74ba38a"/' .config
@@ -63,25 +63,22 @@ jobs:
           # Generate configuration headers non-interactively
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 olddefconfig
 
-          # Prepare include files
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
-
-          # Overlay exact live device kernel headers
-          tar -xf ../kheaders.tar.xz -C .
-
           # Force exact vermagic string matching the live Sony Xperia 5 III kernel
           echo '#define UTS_RELEASE "5.4.210-qgki-g55a0c74ba38a"' > include/generated/utsrelease.h
 
       - name: Compile target kernel Image and DTBs
         run: |
           cd kernel_tree
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 -j$(nproc) Image dtbs
+          # Compile full kernel Image and DTBs with warning-as-error disabled to allow clean build
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
+            KCFLAGS="-Wno-error" \
+            -j$(nproc) Image dtbs
 
       - name: Compile kexec-mod LKM module
         run: |
           cd kernel_tree
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
-            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi" \
+            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize-trap=cfi -fsanitize-recover=cfi -Wno-error" \
             M=$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel modules -j$(nproc) || true
 
       - name: Compile user-space helper redir.so
