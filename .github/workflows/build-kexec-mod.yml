@@ -1,0 +1,94 @@
+name: Fast Build Kexec LKM Module
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-kexec-mod.yml'
+      - 'tools/j4nn-kexec-mod/**'
+
+jobs:
+  build-mod:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-11 lld-11 llvm-11 gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
+            make bc bison flex libssl-dev libelf-dev xz-utils
+          sudo ln -sf /usr/bin/clang-11 /usr/local/bin/clang
+          sudo ln -sf /usr/bin/clang++-11 /usr/local/bin/clang++
+          sudo ln -sf /usr/bin/lld-11 /usr/local/bin/ld.lld
+          sudo ln -sf /usr/bin/llvm-ar-11 /usr/local/bin/llvm-ar
+          sudo ln -sf /usr/bin/llvm-strip-11 /usr/local/bin/llvm-strip
+
+          # llvm-nm wrapper to handle SIGPIPE
+          printf '#!/bin/bash\n/usr/bin/llvm-nm-11 "$@"\nret=$?\nif [ $ret -eq 141 ] || [ $ret -eq 134 ]; then\n  exit 0\nfi\nexit $ret\n' | sudo tee /usr/local/bin/llvm-nm > /dev/null
+          sudo chmod +x /usr/local/bin/llvm-nm
+
+      - name: Clone Sony Xperia SM8350 Android 13 kernel tree
+        run: |
+          git clone --depth=1 -b master_qcom_a13 https://github.com/Skyler1n/android_kernel_sony_sm8350.git kernel_tree
+
+      - name: Prepare kernel module build headers
+        run: |
+          cd kernel_tree
+          sed -i 's/SUBLEVEL = .*/SUBLEVEL = 210/' Makefile
+
+          # Replace scripts/gcc-wrapper.py
+          python3 -c "open('scripts/gcc-wrapper.py', 'w').write('#!/usr/bin/env python3\nimport sys, os\nos.execvp(sys.argv[1], sys.argv[1:])\n')"
+          chmod +x scripts/gcc-wrapper.py
+
+          cp ../kernel_config .config
+          cp ../Module.symvers Module.symvers
+
+          # Disable UAPI header tests & headers install
+          sed -i 's/CONFIG_UAPI_HEADER_TEST=y/# CONFIG_UAPI_HEADER_TEST is not set/' .config
+          sed -i 's/CONFIG_HEADERS_INSTALL=y/# CONFIG_HEADERS_INSTALL is not set/' .config
+
+          # Configure with exact vermagic
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 olddefconfig
+          echo '#define UTS_RELEASE "5.4.210-qgki-g55a0c74ba38a"' > include/generated/utsrelease.h
+
+          # Prepare module headers without building full vmlinux (takes ~15 seconds!)
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 prepare modules_prepare
+
+      - name: Compile kexec-mod LKM module
+        run: |
+          cd kernel_tree
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 \
+            KBUILD_MODPOST_WARN=1 \
+            KCFLAGS="-fno-pic -mcmodel=large -fno-sanitize=all -fno-sanitize-trap=all -Wno-error" \
+            M=$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel modules -j$(nproc)
+
+          echo "[+] Built modules:"
+          find $GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel -name "*.ko" -ls
+
+      - name: Compile user-space helper redir.so
+        run: |
+          cd tools/j4nn-kexec-mod/user
+          aarch64-linux-gnu-gcc -O2 -Wall -shared -fpic -o redir.so redir.c
+
+      - name: Stage build artifacts
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/mod_out
+          find "$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/kernel" -name "*.ko" -exec cp {} $GITHUB_WORKSPACE/mod_out/ \;
+          cp "$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/user/redir.so" $GITHUB_WORKSPACE/mod_out/ || true
+          if [ -f "$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/user/kexec" ]; then
+            cp "$GITHUB_WORKSPACE/tools/j4nn-kexec-mod/user/kexec" $GITHUB_WORKSPACE/mod_out/
+          fi
+          ls -lh $GITHUB_WORKSPACE/mod_out/
+
+      - name: Upload Kexec Module Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kexec-modules-only
+          path: mod_out/*
+          if-no-files-found: error
