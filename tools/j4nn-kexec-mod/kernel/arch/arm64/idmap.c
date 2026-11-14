@@ -18,7 +18,7 @@
 
 static void my_cpu_set_reserved_ttbr0(void)
 {
-	unsigned long rpd = kprobe_lookup_name("reserved_pg_dir");
+	unsigned long rpd = find_symbol_via_kprobe("reserved_pg_dir");
 	unsigned long pa = rpd ? virt_to_phys((void *)rpd) : 0;
 	unsigned long ttbr = phys_to_ttbr(pa);
 

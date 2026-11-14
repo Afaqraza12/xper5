@@ -15,7 +15,7 @@
 
 #include <linux/kprobes.h>
 
-static inline unsigned long kprobe_lookup_name(const char *name)
+static inline unsigned long find_symbol_via_kprobe(const char *name)
 {
 	unsigned long addr = 0;
 	struct kprobe kp = {
